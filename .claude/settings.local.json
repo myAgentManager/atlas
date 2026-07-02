@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(git -C /Users/hunterstamps/myAgent status)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node server/index.js)",
+      "Bash(echo \"started, pid $!\")",
+      "Bash(curl -s http://localhost:8787/api/agent)",
+      "Bash(curl -s -X POST http://localhost:8787/api/tasks -H 'Content-Type: application/json' -d '{\"title\":\"Tidy my notes\",\"prompt\":\"Summarize what is in my workspace and draft a status note.\",\"runNow\":true}')",
+      "Bash(curl -s http://localhost:8787/api/tasks)",
+      "Bash(node -e 'const t=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(0\\)\\);for\\(const x of t\\){console.log\\(`status=${x.status} runCount=${x.runCount} events=${x.events.length}\\\\nresult=${x.lastResult}`\\)}')",
+      "Bash(kill 11398)",
+      "Bash(lsof -ti:8787)"
+    ]
+  }
+}

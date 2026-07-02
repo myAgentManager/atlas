@@ -1,0 +1,57 @@
+// Original hand-authored line icons (1.6px stroke) + the myAgent logo mark.
+// Everything inline SVG — no icon fonts, no emoji, nothing borrowed.
+import React from 'react';
+
+const PATHS = {
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />,
+  shield: <><path d="M12 3 5 6v6c0 4 3 6.5 7 9 4-2.5 7-5 7-9V6l-7-3Z" /><path d="m9.5 12 2 2 3.5-4" /></>,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.5 6 3.5 9S14.5 18.5 12 21c-2.5-2.5-3.5-6-3.5-9S9.5 5.5 12 3Z" /></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 9h18M8 3v4M16 3v4" /></>,
+  chat: <path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12Z" />,
+  bell: <><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8Z" /><path d="M10.5 20a2 2 0 0 0 3 0" /></>,
+  bellOff: <><path d="M6 8a6 6 0 0 1 9-5.2M18 8c0 7 3 8 3 8H7" /><path d="M10.5 20a2 2 0 0 0 3 0M3 3l18 18" /></>,
+  server: <><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+  cpu: <><rect x="6" y="6" width="12" height="12" rx="2" /><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" /><rect x="10" y="10" width="4" height="4" rx="1" /></>,
+  check: <path d="m5 12 5 5L20 6" />,
+  play: <path d="M7 5v14l12-7-12-7Z" />,
+  stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  send: <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />,
+  home: <path d="M4 11 12 4l8 7M6 10v10h12V10" />,
+  spark: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6" /></>,
+  lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  key: <><circle cx="8" cy="15" r="4" /><path d="M11 12 20 3M16 7l3 3M13 10l2 2" /></>,
+  gear: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9 19 19M19 5l-2.1 2.1M7.1 16.9 5 19" /></>,
+  plug: <><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0V8Z" /><path d="M12 17v4" /></>,
+  eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.6" /></>,
+  copy: <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>,
+  logout: <><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" /></>,
+  brain: <><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="8.5" strokeDasharray="8 5" /><path d="M12 8V5M15.2 13.8l2.6 1.4M8.8 13.8l-2.6 1.4" /></>,
+  file: <><path d="M6 3h8l4 4v14H6V3Z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></>,
+  refresh: <path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v4h-4" />,
+  code: <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 5l-2 14" />,
+};
+
+export function Icon({ name, size = 20, className = '' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`icon ${className}`} aria-hidden>
+      {PATHS[name] || null}
+    </svg>
+  );
+}
+
+// The myAgent mark: an orbit with a rising node — original, drawn for this app.
+export function Mark({ size = 28 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
+      <circle cx="24" cy="24" r="19" stroke="var(--cyan)" strokeWidth="2.4" strokeDasharray="86 34" strokeLinecap="round" transform="rotate(-58 24 24)" />
+      <circle cx="24" cy="24" r="8.5" fill="var(--cyan)" opacity="0.16" />
+      <circle cx="24" cy="24" r="4.5" fill="var(--cyan)" />
+      <circle cx="37.5" cy="12" r="3" fill="var(--cyan)" />
+    </svg>
+  );
+}

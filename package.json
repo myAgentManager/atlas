@@ -1,0 +1,17 @@
+{
+  "name": "myagent",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "myAgent — your self-hosted personal AI agent. Assign it any task; it runs all day.",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "build": "npm install --prefix web && npm run build --prefix web",
+    "setup": "npm install && npm install --prefix web && npm run build --prefix web"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.22.0"
+  }
+}

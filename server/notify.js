@@ -3,15 +3,24 @@
 // SDK.
 import { config } from './config.js';
 import { audit } from './auth.js';
+import { getPlatform } from './platform.js';
+
+// Twilio credentials come from the admin console first, then fall back to .env.
+function twilio() {
+  const c = getPlatform().channels?.sms || {};
+  if (c.enabled && c.sid && c.token && c.from) return { sid: c.sid, token: c.token, from: c.from };
+  const e = config.twilio;
+  return e.sid && e.token && e.from ? e : null;
+}
 
 export function smsReady() {
-  const { sid, token, from } = config.twilio;
-  return Boolean(sid && token && from);
+  return Boolean(twilio());
 }
 
 export async function sendSms(to, body) {
-  if (!smsReady() || !to) return { ok: false, skipped: true };
-  const { sid, token, from } = config.twilio;
+  const creds = twilio();
+  if (!creds || !to) return { ok: false, skipped: true };
+  const { sid, token, from } = creds;
   const auth = Buffer.from(`${sid}:${token}`).toString('base64');
   const form = new URLSearchParams({ To: to, From: from, Body: String(body).slice(0, 1500) });
   try {

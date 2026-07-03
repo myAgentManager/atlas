@@ -8,6 +8,7 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
     ['deck', 'Command Deck', 'bolt'],
     ['atlas', 'ATLAS', 'brain'],
     ['files', 'Files', 'file'],
+    ['database', 'Database', 'server'],
     ['settings', 'Settings', 'gear'],
   ];
   return (

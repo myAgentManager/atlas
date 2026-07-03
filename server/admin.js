@@ -240,6 +240,35 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   <button class="btn" onclick="savePlatform()">Save platform settings</button></div>
 </div></div>
 
+<div class="panel"><h2>${LOCK_SVG} Channels &amp; messaging</h2>
+<p class="hint" style="margin-bottom:14px">Turn transports on or off here. Anywhere a channel is used, it reads <b>Not Available</b> until switched on and configured.</p>
+<div class="pform">
+  <div class="prov">
+    <div class="prov-head"><b>SMS — Twilio</b><label class="row"><input type="checkbox" id="sms_on"> enabled</label></div>
+    <div class="hint">Powers SMS notifications and SMS-based two-step verification.</div>
+    <label>Account SID <input id="sms_sid" placeholder="AC…"></label>
+    <div class="two"><label>Auth token <input id="sms_token" type="password" placeholder="••••"></label>
+    <label>From number <input id="sms_from" placeholder="+15555550123"></label></div>
+  </div>
+  <div class="prov">
+    <div class="prov-head"><b>Email — SMTP</b><label class="row"><input type="checkbox" id="em_on"> enabled</label></div>
+    <div class="hint">Powers email-based two-step verification.</div>
+    <div class="two"><label>SMTP host <input id="em_host" placeholder="smtp.provider.com"></label>
+    <label>Port <input id="em_port" placeholder="587"></label></div>
+    <div class="two"><label>Username <input id="em_user" placeholder="apikey"></label>
+    <label>From address <input id="em_from" placeholder="atlas@yourdomain.com"></label></div>
+    <label>Password <input id="em_pass" type="password" placeholder="••••"></label>
+  </div>
+  <div class="prov">
+    <div class="prov-head"><b>Two-step verification methods</b></div>
+    <label class="row"><input type="checkbox" id="tv_totp" checked> Authenticator app (TOTP) — always available</label>
+    <label class="row"><input type="checkbox" id="tv_sms"> SMS codes <span class="hint" style="margin-left:6px">requires SMS channel</span></label>
+    <label class="row"><input type="checkbox" id="tv_email"> Email codes <span class="hint" style="margin-left:6px">requires Email channel</span></label>
+  </div>
+  <div style="text-align:right"><span id="c_flash" style="color:var(--green);font-size:13px;margin-right:12px"></span>
+  <button class="btn" onclick="saveChannels()">Save channels</button></div>
+</div></div>
+
 <div class="panel"><h2>${LOCK_SVG} Accounts</h2><table id="users"></table></div>
 <div class="panel"><h2>${LOCK_SVG} All tasks</h2><table id="tasks"></table></div>
 <div class="panel"><h2>${LOCK_SVG} Audit log</h2><div class="log" id="log"></div></div>
@@ -277,7 +306,20 @@ async function loadPlatform(){
   $('#p_base').value=p.baseUrl||'';$('#p_reg').checked=!!p.registrationOpen;
   $('#g_on').checked=!!p.google.enabled;$('#g_id').value=p.google.clientId||'';$('#g_secret').value=p.google.clientSecret||'';
   $('#a_on').checked=!!p.apple.enabled;$('#a_sid').value=p.apple.serviceId||'';$('#a_team').value=p.apple.teamId||'';$('#a_key').value=p.apple.keyId||'';$('#a_pk').value=p.apple.privateKey||'';
+  const c=p.channels||{};const sms=c.sms||{},em=c.email||{};
+  $('#sms_on').checked=!!sms.enabled;$('#sms_sid').value=sms.sid||'';$('#sms_token').value=sms.token||'';$('#sms_from').value=sms.from||'';
+  $('#em_on').checked=!!em.enabled;$('#em_host').value=em.host||'';$('#em_port').value=em.port||'';$('#em_user').value=em.user||'';$('#em_from').value=em.from||'';$('#em_pass').value=em.pass||'';
+  $('#tv_totp').checked=c.totp2sv?c.totp2sv.enabled!==false:true;$('#tv_sms').checked=!!(c.sms2sv&&c.sms2sv.enabled);$('#tv_email').checked=!!(c.email2sv&&c.email2sv.enabled);
   updateCb();
+}
+async function saveChannels(){
+  const body={channels:{
+    sms:{enabled:$('#sms_on').checked,sid:$('#sms_sid').value.trim(),token:$('#sms_token').value.trim(),from:$('#sms_from').value.trim()},
+    email:{enabled:$('#em_on').checked,host:$('#em_host').value.trim(),port:Number($('#em_port').value)||587,user:$('#em_user').value.trim(),from:$('#em_from').value.trim(),pass:$('#em_pass').value},
+    totp2sv:{enabled:$('#tv_totp').checked},sms2sv:{enabled:$('#tv_sms').checked},email2sv:{enabled:$('#tv_email').checked}}};
+  const r=await fetch(BASE+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.status===401)return location.reload();
+  $('#c_flash').textContent='Saved.';setTimeout(()=>$('#c_flash').textContent='',2500);
 }
 function updateCb(){const b=$('#p_base').value.replace(/\\/+$/,'')||location.origin.replace(':'+location.port,':8787');
   $('#g_cb').textContent=b+'/api/auth/oauth/google/callback';$('#a_cb').textContent=b+'/api/auth/oauth/apple/callback'}

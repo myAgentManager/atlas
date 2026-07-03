@@ -1,16 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
+import { toast } from '../toast.jsx';
 
 const STARTERS = [
   ['Website', 'Build me a one-page website for '],
   ['Research', 'Research on the web and write a cited report about '],
   ['Document', 'Draft a structured document about '],
+  ['Story', 'Write a story about '],
   ['Digest', 'Summarize everything in my workspace.'],
 ];
 
+const STATUS_RANK = { running: 0, 'awaiting-input': 1, queued: 2, failed: 3, done: 4, paused: 5, idle: 6 };
+
 export default function Dashboard({ agent, user, tasks, reload }) {
   const name = agent?.name || 'ATLAS';
+  const [leftMode, setLeftMode] = useState('projects'); // 'projects' | 'new'
+  const [filter, setFilter] = useState(null); // active project filter (null = all)
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [project, setProject] = useState('');
@@ -24,75 +30,120 @@ export default function Dashboard({ agent, user, tasks, reload }) {
     return tasks.find((t) => t.status === 'running') || [...tasks].sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
   }, [tasks, selectedId]);
 
-  const projects = useMemo(
-    () => [...new Set(tasks.map((t) => t.project).filter(Boolean))],
-    [tasks]
-  );
+  const projects = useMemo(() => [...new Set(tasks.map((t) => t.project).filter(Boolean))].sort(), [tasks]);
 
-  // Group the task list by project so related work stays together.
-  const grouped = useMemo(() => {
-    const g = new Map();
+  // One tidy summary per project for the sidebar.
+  const projectCards = useMemo(() => {
+    const map = new Map();
     for (const t of tasks) {
-      const key = t.project || '';
-      if (!g.has(key)) g.set(key, []);
-      g.get(key).push(t);
+      const key = t.project || '__none';
+      const c = map.get(key) || { key, name: t.project || 'Unfiled', count: 0, running: 0, done: 0, updatedAt: 0 };
+      c.count++;
+      if (t.status === 'running' || t.status === 'awaiting-input') c.running++;
+      if (t.status === 'done') c.done++;
+      c.updatedAt = Math.max(c.updatedAt, t.updatedAt || 0);
+      map.set(key, c);
     }
-    return [...g.entries()].sort(([a], [b]) => (a || '~').localeCompare(b || '~'));
+    return [...map.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }, [tasks]);
+
+  const visible = useMemo(() => {
+    const list = filter ? tasks.filter((t) => (t.project || '__none') === filter) : tasks;
+    return [...list].sort((a, b) =>
+      (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) || b.updatedAt - a.updatedAt);
+  }, [tasks, filter]);
 
   async function assign(runNow) {
     if (!prompt.trim() || busy) return;
     setBusy(true);
     try {
-      const task = await api.create({ title, prompt, project, schedule: schedule.schedule, notify, runNow });
+      const task = await api.create({ title, prompt, project: project || (filter && filter !== '__none' ? projectCards.find((p) => p.key === filter)?.name : ''), schedule: schedule.schedule, notify, runNow });
       setTitle(''); setPrompt('');
       setSelectedId(task.id);
-    } catch (e) { alert(e.message); }
+      setLeftMode('projects');
+      toast(runNow ? `${name} is on it.` : 'Task queued.', 'ok');
+    } catch (e) { toast(e.message, 'err'); }
     finally { setBusy(false); }
   }
+
+  const filterName = filter === '__none' ? 'Unfiled' : filter;
 
   return (
     <div className="deck-grid">
       <section className="col col-left">
-        <div className="panel composer">
-          <div className="panel-title"><Icon name="spark" size={14} /> Assign a task</div>
-          <div className="chip-row">
-            {STARTERS.map(([label, starter]) => (
-              <button key={label} type="button" className="starter-chip" onClick={() => setPrompt(starter)}>{label}</button>
-            ))}
-          </div>
-          <input className="field" placeholder="Short title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea
-            className="field textarea"
-            placeholder={`Tell ${name} what to do… e.g. "Build me a one-page site for my band by tomorrow morning."`}
-            value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4}
-          />
-          <input className="field project-field" list="project-list" placeholder="Project (optional — groups tasks & files)"
-            value={project} onChange={(e) => setProject(e.target.value)} />
-          <datalist id="project-list">{projects.map((p) => <option key={p} value={p} />)}</datalist>
-          <SchedulePicker onChange={setSchedule} />
-          <label className="notify-row">
-            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-            <Icon name={notify ? 'bell' : 'bellOff'} size={15} />
-            <span>Notify me when it's done {agent && !agent.sms && <em>(SMS off — see Settings)</em>}</span>
-          </label>
-          <div className="composer-actions">
-            <button className="gel-btn" disabled={busy || !prompt.trim()} onClick={() => assign(false)}>Queue it</button>
-            <button className="gel-btn gel-primary" disabled={busy || !prompt.trim()} onClick={() => assign(true)}>Assign &amp; Run</button>
-          </div>
+        {/* toggle: project sidebar vs. new-task composer */}
+        <div className="left-switch">
+          <button className={`lswitch ${leftMode === 'projects' ? 'on' : ''}`} onClick={() => setLeftMode('projects')}>
+            <Icon name="file" size={14} /> Projects
+          </button>
+          <button className={`lswitch ${leftMode === 'new' ? 'on' : ''}`} onClick={() => { setLeftMode('new'); setProject(filterName && filter !== '__none' ? filterName : ''); }}>
+            <Icon name="spark" size={14} /> New task
+          </button>
         </div>
 
+        {leftMode === 'new' ? (
+          <div className="panel composer">
+            <div className="chip-row">
+              {STARTERS.map(([label, starter]) => (
+                <button key={label} type="button" className="starter-chip" onClick={() => setPrompt(starter)}>{label}</button>
+              ))}
+            </div>
+            <textarea
+              className="field textarea"
+              placeholder={`Tell ${name} what to do… e.g. "Build me a one-page site for my band by tomorrow morning." ATLAS titles it for you.`}
+              value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} autoFocus
+            />
+            <input className="field" placeholder="Custom title (optional — ATLAS writes one otherwise)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input className="field project-field" list="project-list" placeholder="Project (groups tasks & files)"
+              value={project} onChange={(e) => setProject(e.target.value)} />
+            <datalist id="project-list">{projects.map((p) => <option key={p} value={p} />)}</datalist>
+            <SchedulePicker onChange={setSchedule} />
+            <label className="notify-row">
+              <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+              <Icon name={notify ? 'bell' : 'bellOff'} size={15} />
+              <span>Notify me when it's done {agent && !agent.channels && !agent.sms && <em>(SMS Not Available)</em>}</span>
+            </label>
+            <div className="composer-actions">
+              <button className="gel-btn" disabled={busy || !prompt.trim()} onClick={() => assign(false)}>Queue it</button>
+              <button className="gel-btn gel-primary" disabled={busy || !prompt.trim()} onClick={() => assign(true)}>Assign &amp; Run</button>
+            </div>
+          </div>
+        ) : (
+          <div className="panel projects-panel">
+            <div className="panel-title"><Icon name="file" size={14} /> Projects <span className="count-chip">{projectCards.length}</span></div>
+            <div className="proj-scroll">
+              <button className={`proj-row all ${!filter ? 'active' : ''}`} onClick={() => setFilter(null)}>
+                <span className="proj-name">All tasks</span>
+                <span className="proj-count">{tasks.length}</span>
+              </button>
+              {projectCards.length === 0 && <div className="empty">No projects yet. Start a task and give it a project name.</div>}
+              {projectCards.map((p) => (
+                <button key={p.key} className={`proj-row ${filter === p.key ? 'active' : ''}`} onClick={() => setFilter(p.key)}>
+                  <span className="proj-glyph">{p.name[0].toUpperCase()}</span>
+                  <span className="proj-main">
+                    <span className="proj-name">{p.name}</span>
+                    <span className="proj-sub">{p.count} task{p.count !== 1 ? 's' : ''}{p.done ? ` · ${p.done} done` : ''}</span>
+                  </span>
+                  {p.running > 0 && <span className="led cyan pulse" />}
+                </button>
+              ))}
+            </div>
+            <button className="gel-btn gel-primary new-task-btn" onClick={() => { setLeftMode('new'); setProject(filterName && filter !== '__none' ? filterName : ''); }}>
+              <Icon name="spark" size={15} /> New task
+            </button>
+          </div>
+        )}
+
         <div className="panel tasklist">
-          <div className="panel-title"><Icon name="bolt" size={14} /> Tasks <span className="count-chip">{tasks.length}</span></div>
+          <div className="panel-title">
+            <Icon name="bolt" size={14} /> {filter ? filterName : 'All tasks'} <span className="count-chip">{visible.length}</span>
+            {filter && <button className="clear-filter" onClick={() => setFilter(null)}>clear</button>}
+          </div>
           <div className="task-scroll">
-            {tasks.length === 0 && <div className="empty">No tasks yet. Give {name} something to do.</div>}
-            {grouped.map(([proj, list]) => (
-              <div key={proj || 'general'} className="task-group">
-                {proj && <div className="task-group-name"><Icon name="file" size={11} /> {proj}</div>}
-                {list.map((t) => (
-                  <TaskRow key={t.id} task={t} active={selected?.id === t.id} onSelect={() => setSelectedId(t.id)} reload={reload} />
-                ))}
-              </div>
+            {visible.length === 0 && <div className="empty">No tasks here yet. Give {name} something to do.</div>}
+            {visible.map((t) => (
+              <TaskRow key={t.id} task={t} active={selected?.id === t.id} showProject={!filter}
+                onSelect={() => setSelectedId(t.id)} reload={reload} />
             ))}
           </div>
         </div>
@@ -218,12 +269,13 @@ function summarize(s) {
 }
 
 /* ---------- task row ---------- */
-function TaskRow({ task, active, onSelect, reload }) {
+function TaskRow({ task, active, onSelect, reload, showProject }) {
+  const [armed, setArmed] = useState(false);
   const running = task.status === 'running';
   const stop = (e) => { e.stopPropagation(); api.stop(task.id).catch(() => {}); };
-  const run = (e) => { e.stopPropagation(); api.run(task.id).catch((err) => alert(err.message)); };
+  const run = (e) => { e.stopPropagation(); api.run(task.id).then(() => toast('Running.', 'ok')).catch((err) => toast(err.message, 'err')); };
   const bell = (e) => { e.stopPropagation(); api.update(task.id, { notify: !task.notify }).catch(() => {}); };
-  const del = (e) => { e.stopPropagation(); if (confirm(`Delete "${task.title}"?`)) api.remove(task.id).then(reload).catch(() => {}); };
+  const del = (e) => { e.stopPropagation(); api.remove(task.id).then(reload).then(() => toast('Task deleted.')).catch((err) => toast(err.message, 'err')); };
 
   return (
     <div className={`task-row ${active ? 'active' : ''}`} onClick={onSelect}>
@@ -232,19 +284,29 @@ function TaskRow({ task, active, onSelect, reload }) {
         <div className="task-title">{task.title}</div>
         <div className="task-meta">
           <span className={`status-tag ${task.status}`}>{statusLabel(task.status)}</span>
+          {showProject && task.project && <span className="proj-chip">{task.project}</span>}
           <span className="sched-badge">{rowSchedule(task.schedule)}</span>
           {task.schedule?.deadline && <span className="dl-badge"><Icon name="clock" size={11} /> {fmt(task.schedule.deadline)}</span>}
           {task.runCount > 0 && <span className="runs">×{task.runCount}</span>}
         </div>
       </div>
-      <div className="task-controls">
-        <button className={`mini-btn ${task.notify ? 'lit' : 'ghost'}`} onClick={bell} title={task.notify ? 'Notifications on' : 'Notifications off'}>
-          <Icon name={task.notify ? 'bell' : 'bellOff'} size={13} />
-        </button>
-        {running
-          ? <button className="mini-btn stop" onClick={stop} title="Stop"><Icon name="stop" size={12} /></button>
-          : <button className="mini-btn" onClick={run} title="Run now"><Icon name="play" size={12} /></button>}
-        <button className="mini-btn ghost" onClick={del} title="Delete"><Icon name="close" size={13} /></button>
+      <div className="task-controls" onClick={(e) => e.stopPropagation()}>
+        {armed ? (
+          <>
+            <button className="mini-btn stop" title="Confirm delete" onClick={del}><Icon name="check" size={13} /></button>
+            <button className="mini-btn ghost" title="Cancel" onClick={() => setArmed(false)}><Icon name="close" size={13} /></button>
+          </>
+        ) : (
+          <>
+            <button className={`mini-btn ${task.notify ? 'lit' : 'ghost'}`} onClick={bell} title={task.notify ? 'Notifications on' : 'Notifications off'}>
+              <Icon name={task.notify ? 'bell' : 'bellOff'} size={13} />
+            </button>
+            {running
+              ? <button className="mini-btn stop" onClick={stop} title="Stop"><Icon name="stop" size={12} /></button>
+              : <button className="mini-btn" onClick={run} title="Run now"><Icon name="play" size={12} /></button>}
+            <button className="mini-btn ghost" onClick={() => setArmed(true)} title="Delete"><Icon name="close" size={13} /></button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -262,8 +324,9 @@ function Feed({ task, name }) {
     const text = msg.trim();
     if (!text || !task) return;
     setMsg('');
-    api.chat(task.id, text).catch((e) => alert(e.message));
+    api.chat(task.id, text).catch((e) => toast(e.message, 'err'));
   };
+  const awaiting = task?.status === 'awaiting-input';
 
   return (
     <div className="panel feed">
@@ -288,9 +351,10 @@ function Feed({ task, name }) {
         </div>
       )}
 
+      {awaiting && <div className="awaiting-hint"><Icon name="chat" size={13} /> {name} has a question — answer below to begin.</div>}
       <div className="chat-bar">
         <input
-          className="field" placeholder={task ? `Message ${name} about this task…` : 'Select a task to chat'}
+          className="field" placeholder={awaiting ? 'Answer ATLAS…' : task ? `Message ${name} about this task…` : 'Select a task to chat'}
           value={msg} disabled={!task}
           onChange={(e) => setMsg(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
@@ -342,8 +406,8 @@ function ChatBubble({ ev, name }) {
 }
 
 /* ---------- helpers ---------- */
-function ledClass(s) { return { running: 'cyan pulse', done: 'green', failed: 'red', queued: 'amber', paused: 'amber', idle: 'dim' }[s] || 'dim'; }
-function statusLabel(s) { return { idle: 'idle', queued: 'queued', running: 'running', done: 'done', failed: 'failed', paused: 'stopped' }[s] || s; }
+function ledClass(s) { return { running: 'cyan pulse', 'awaiting-input': 'amber pulse', done: 'green', failed: 'red', queued: 'amber', paused: 'amber', idle: 'dim' }[s] || 'dim'; }
+function statusLabel(s) { return { idle: 'idle', queued: 'queued', running: 'running', 'awaiting-input': 'needs you', done: 'done', failed: 'failed', paused: 'stopped' }[s] || s; }
 function rowSchedule(s) {
   if (!s || s.type === 'manual') return 'on demand';
   if (s.type === 'once') return `once · ${fmt(s.at)}`;

@@ -50,4 +50,12 @@ export const api = {
   shares: () => get('/api/shares'),
   share: (path) => post('/api/shares', { path }),
   revokeShare: (token) => send(`/api/shares/${token}`, 'DELETE'),
+
+  // Atlas Database
+  dbOverview: () => get('/api/db'),
+  dbCreateCollection: (project, name) => post(`/api/db/${encodeURIComponent(project)}/collections`, { name }),
+  dbDropCollection: (project, collection) => send(`/api/db/${encodeURIComponent(project)}/${encodeURIComponent(collection)}`, 'DELETE'),
+  dbList: (project, collection) => get(`/api/db/${encodeURIComponent(project)}/${encodeURIComponent(collection)}`),
+  dbInsert: (project, collection, data) => post(`/api/db/${encodeURIComponent(project)}/${encodeURIComponent(collection)}`, data),
+  dbRemove: (project, collection, id) => send(`/api/db/${encodeURIComponent(project)}/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, 'DELETE'),
 };

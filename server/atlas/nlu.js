@@ -157,6 +157,33 @@ export function understand(text) {
 export const intentCount = () => model.intents.length;
 export const vocabSize = () => model.vocab.size;
 
+// --- self-generated titles --------------------------------------------------
+// ATLAS names its own tasks from what it understood — never a raw slice of the
+// operator's words.
+const titleCase = (s) => String(s).replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+// Local keyword pick (no cross-module import — nlu stays standalone).
+function topWords(text, k = 3) {
+  const tf = new Map();
+  for (const w of tokenize(text)) if (w.length > 2) tf.set(w, (tf.get(w) || 0) + 1);
+  return [...tf.entries()].sort((a, b) => b[1] - a[1]).slice(0, k).map(([w]) => w);
+}
+export function titleFor(u) {
+  const t = u.entities.topic;
+  const words = topWords(u.raw, 3).map(titleCase).join(' ');
+  switch (u.intent) {
+    case 'build_website': return t ? `${titleCase(t)} — Website` : 'New Website';
+    case 'write_story': return t ? `${titleCase(t)} — Story` : 'New Story';
+    case 'write_doc': return t ? `${titleCase(t)} — Document` : (words ? `${words} — Notes` : 'New Document');
+    case 'research': {
+      const q = (t || u.raw.replace(/^(research|find|look up|investigate|search( the web)?( for)?)\s*/i, '')).trim();
+      return `Research: ${titleCase(q).slice(0, 40) || 'the web'}`;
+    }
+    case 'summarize_files': return 'Workspace Digest';
+    case 'organize': return 'Workspace Organization';
+    default: return t ? titleCase(t) : (words ? `${words} — Task` : 'New Task');
+  }
+}
+
 // --- clarifying questions ---------------------------------------------------
 // Before doing work, ATLAS checks whether the brief is ambiguous the way a
 // good assistant would — and asks ONE sharp question instead of guessing.

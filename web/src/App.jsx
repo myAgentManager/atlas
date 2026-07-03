@@ -6,8 +6,10 @@ import Dashboard from './pages/Dashboard.jsx';
 import Atlas from './pages/Atlas.jsx';
 import Settings from './pages/Settings.jsx';
 import Files from './pages/Files.jsx';
+import Database from './pages/Database.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Nav from './Nav.jsx';
+import { Toaster } from './toast.jsx';
 
 export default function App() {
   const [view, setView] = useState('home'); // home | login | deck | atlas | settings
@@ -87,13 +89,15 @@ export default function App() {
   const page =
     view === 'atlas' ? <Atlas agent={agent} user={user} chat={chat} setChat={setChat} tasks={tasks} /> :
     view === 'settings' ? <Settings user={user} setUser={setUser} agent={agent} onDeleted={signedOut} /> :
-    view === 'files' ? <Files /> :
+    view === 'files' ? <Files tasks={tasks} /> :
+    view === 'database' ? <Database tasks={tasks} user={user} /> :
     <Dashboard agent={agent} user={user} tasks={tasks} reload={reload} />;
 
   return (
     <div className="app">
       <Nav view={view} setView={setView} user={user} connected={connected} onSignOut={signedOut} />
       {page}
+      <Toaster />
     </div>
   );
 }

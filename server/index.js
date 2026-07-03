@@ -11,6 +11,8 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import { runTask, stopTask, isRunning, taskChat, atlasChat } from './agent.js';
 import { engineInfo, converse } from './atlas/core.js';
+import { checkContent, declineMessage } from './atlas/guard.js';
+import { understand, titleFor } from './atlas/nlu.js';
 import { smsReady } from './notify.js';
 import { forUser, mimeFor } from './tools.js';
 import { startAdmin } from './admin.js';
@@ -18,6 +20,7 @@ import { dbMode } from './db.js';
 import { getPlatform, publicPlatform } from './platform.js';
 import { mountOAuth } from './oauth.js';
 import * as shares from './shares.js';
+import * as adb from './database.js';
 
 const STARTED_AT = Date.now();
 const app = express();
@@ -173,6 +176,7 @@ app.delete('/api/me', auth.requireAuth, async (req, res) => {
   if (!passOk) return bad(res, 401, 'Password required to delete your account.');
   for (const t of store.listTasks(req.user.id)) { stopTask(t.id); store.deleteTask(t.id); }
   shares.revokeAllForUser(req.user.id);
+  adb.removeAllForUser(req.user.id);
   await forUser(req.user.id).removeAll().catch(() => {}); // wipe their workspace: privacy
   auth.deleteUser(req.user.id);
   auth.clearCookie(res, 'ma_sess');
@@ -212,7 +216,9 @@ app.post('/api/tasks', auth.requireAuth, (req, res) => {
   if (!prompt || !prompt.trim()) return bad(res, 400, 'prompt is required');
   const gate = checkContent(`${title || ''} ${prompt}`);
   if (!gate.ok) return bad(res, 400, declineMessage(gate.topic));
-  const task = store.createTask({ userId: req.user.id, title, prompt, project, schedule, notify });
+  // ATLAS names the task itself unless the operator supplied a title.
+  const finalTitle = title?.trim() || titleFor(understand(prompt));
+  const task = store.createTask({ userId: req.user.id, title: finalTitle, prompt, project, schedule, notify });
   if (runNow) enqueue(task.id);
   res.status(201).json(task);
 });
@@ -251,6 +257,25 @@ app.post('/api/atlas/chat', auth.requireAuth, (req, res) => {
   if (!message) return bad(res, 400, 'message required');
   res.json({ reply: atlasChat(req.user.id, message) });
 });
+
+// ============================================================================
+// Atlas Database — per-account, per-project collections (UI: session cookie)
+// ============================================================================
+app.get('/api/db', auth.requireAuth, (req, res) => res.json(adb.overview(req.user.id)));
+app.post('/api/db/:project/collections', auth.requireAuth, (req, res) => {
+  try { res.status(201).json(adb.createCollection(req.user.id, req.params.project, req.body?.name)); }
+  catch (e) { bad(res, 400, e.message); }
+});
+app.delete('/api/db/:project/:collection', auth.requireAuth, (req, res) =>
+  res.json({ ok: adb.dropCollection(req.user.id, req.params.project, req.params.collection) }));
+app.get('/api/db/:project/:collection', auth.requireAuth, (req, res) =>
+  res.json(adb.list(req.user.id, req.params.project, req.params.collection)));
+app.post('/api/db/:project/:collection', auth.requireAuth, (req, res) =>
+  res.status(201).json(adb.insert(req.user.id, req.params.project, req.params.collection, req.body || {})));
+app.delete('/api/db/:project/:collection/:id', auth.requireAuth, (req, res) =>
+  res.json({ ok: adb.remove(req.user.id, req.params.project, req.params.collection, req.params.id) }));
+app.post('/api/db/:project/:collection/:id/increment', auth.requireAuth, (req, res) =>
+  res.json(adb.increment(req.user.id, req.params.project, req.params.collection, req.params.id, req.body?.field, req.body?.by)));
 
 // ============================================================================
 // workspace files (each account sees only its own)
@@ -324,7 +349,8 @@ app.post('/api/v1/tasks', apiAuth, (req, res) => {
   if (!prompt || !String(prompt).trim()) return bad(res, 400, 'prompt is required');
   const gate = checkContent(`${title || ''} ${prompt}`);
   if (!gate.ok) return bad(res, 400, declineMessage(gate.topic));
-  const task = store.createTask({ userId: req.user.id, title, prompt: String(prompt), project, schedule });
+  const finalTitle = title?.trim() || titleFor(understand(String(prompt)));
+  const task = store.createTask({ userId: req.user.id, title: finalTitle, prompt: String(prompt), project, schedule });
   if (runNow) enqueue(task.id);
   res.status(201).json(publicTask(task));
 });
@@ -333,6 +359,25 @@ app.post('/api/v1/chat', apiAuth, (req, res) => {
   if (!message) return bad(res, 400, 'message required');
   res.json({ reply: converse({ userId: req.user.id, message, tasks: store.listTasks() }) });
 });
+
+// Public Atlas Database API — a user's generated site/app drives its own DB with
+// the account Bearer key. Firebase-shaped: collections, records, counters.
+app.get('/api/v1/db/:project/:collection', apiAuth, (req, res) =>
+  res.json(adb.list(req.user.id, req.params.project, req.params.collection)));
+app.post('/api/v1/db/:project/:collection', apiAuth, (req, res) =>
+  res.status(201).json(adb.insert(req.user.id, req.params.project, req.params.collection, req.body || {})));
+app.get('/api/v1/db/:project/:collection/:id', apiAuth, (req, res) => {
+  const rec = adb.get(req.user.id, req.params.project, req.params.collection, req.params.id);
+  return rec ? res.json(rec) : bad(res, 404, 'not found');
+});
+app.put('/api/v1/db/:project/:collection/:id', apiAuth, (req, res) => {
+  const rec = adb.update(req.user.id, req.params.project, req.params.collection, req.params.id, req.body || {});
+  return rec ? res.json(rec) : bad(res, 404, 'not found');
+});
+app.delete('/api/v1/db/:project/:collection/:id', apiAuth, (req, res) =>
+  res.json({ ok: adb.remove(req.user.id, req.params.project, req.params.collection, req.params.id) }));
+app.post('/api/v1/db/:project/:collection/:id/increment', apiAuth, (req, res) =>
+  res.json(adb.increment(req.user.id, req.params.project, req.params.collection, req.params.id, req.body?.field, req.body?.by)));
 function publicTask(t) {
   return { id: t.id, title: t.title, prompt: t.prompt, project: t.project, status: t.status, result: t.lastResult, artifact: t.artifact, runCount: t.runCount, createdAt: t.createdAt };
 }

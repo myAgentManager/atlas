@@ -80,7 +80,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
         <div className="band-head"><h2 className="band-title">Built to actually do things</h2></div>
         <div className="cap-grid">
           <Cap icon="brain" title="An AI that's truly yours"
-            body={`${name} runs on ATLAS Core — an original engine written for this project. No Anthropic, no Ollama, no cloud. It thinks on your hardware.`} />
+            body={`${name} runs on ATLAS Core — an original engine built by Atlas Networks. No Anthropic, no Ollama, no wrapper. The thinking is all ours.`} />
           <Cap icon="globe" title="Real web browsing"
             body="Searches the live web and reads pages, then writes cited research reports." />
           <Cap icon="calendar" title="Detailed scheduling"
@@ -165,7 +165,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       </section>
 
       <footer className="home-foot">
-        myAgent · self-hosted personal AI agent · ATLAS Core engine · {new Date().getFullYear()}
+        myAgent — a product of <b className="foot-brand">Atlas Networks</b> · powered by ATLAS Core · {new Date().getFullYear()}
       </footer>
     </div>
   );

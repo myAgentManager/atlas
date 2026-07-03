@@ -44,8 +44,13 @@ const CORPUS = {
   write_doc: [
     'write a blog post about coffee', 'draft an essay on climate',
     'write me a business plan', 'compose an article about hiking',
-    'draft a proposal for the client', 'write a story about a robot',
+    'draft a proposal for the client',
     'create a guide for beginners', 'write documentation for my project',
+  ],
+  write_story: [
+    'write a story about a robot', 'write me a novel', 'write a 200 page story',
+    'write fiction about a lost city', 'compose a short story', 'write a book about dragons',
+    'novel about a detective in space', 'write a long story with chapters',
   ],
   summarize_files: [
     'summarize the files in my workspace', 'summarize my notes',
@@ -135,6 +140,8 @@ export function extractEntities(text) {
   if (/sign\s*-?up|newsletter|mailing\s*list|subscribe|contact form/i.test(src)) ent.wantsSignup = true;
   if (/tour|dates|schedule|events?|shows?|calendar/i.test(src)) ent.wantsDates = true;
   if (/overnight|tonight|by (?:the )?morning|by \d{1,2}\s*(?:am|pm)|tomorrow/i.test(src)) ent.deadline = 'overnight';
+  const pages = src.match(/(\d{1,4})\s*[- ]?page/i);
+  if (pages) ent.pages = Math.min(1000, Number(pages[1]));
   if (/calm|minimal|clean|elegant|soft/i.test(src)) { ent.tone = 'calm'; ent.toneExplicit = true; }
   if (/warm|cozy|friendly|rustic/i.test(src)) { ent.tone = 'warm'; ent.toneExplicit = true; }
   if (/bold|loud|edgy|punchy|aggressive/i.test(src)) { ent.tone = 'bold'; ent.toneExplicit = true; }
@@ -149,3 +156,28 @@ export function understand(text) {
 
 export const intentCount = () => model.intents.length;
 export const vocabSize = () => model.vocab.size;
+
+// --- clarifying questions ---------------------------------------------------
+// Before doing work, ATLAS checks whether the brief is ambiguous the way a
+// good assistant would — and asks ONE sharp question instead of guessing.
+const BRANDS = /\b(iphone|ipad|macbook|apple|tesla|nike|adidas|google|android|samsung|galaxy|playstation|xbox|nintendo|netflix|spotify|amazon|starbucks|disney)\b/i;
+
+export function needsClarification(u) {
+  const src = u.raw || '';
+  const brand = src.match(BRANDS);
+
+  // "make a website for the new iPhone release" — theirs, or the brand's?
+  if (brand && /\b(release|launch|announcement|drop|event|review)\b/i.test(src)) {
+    const b = brand[0][0].toUpperCase() + brand[0].slice(1);
+    return `Quick check before I start: when you say “${brand[0]}”, do you mean the actual ${b} release — so I should research the real thing — or is this your own project that happens to share the name? One line back and I'm moving.`;
+  }
+  // A website with no discernible subject.
+  if (u.intent === 'build_website' && !u.entities.topic) {
+    return `Happy to build this — I just need the subject. What's the site for (a business, a band, a product, you), and is there a name I should put on it?`;
+  }
+  // A story with no subject at all.
+  if (u.intent === 'write_story' && !u.entities.topic && u.raw.split(/\s+/).length < 6) {
+    return `I'll write it — give me the seed first: what's the story about, and any genre or mood you want (mystery, sci-fi, cozy, dark)?`;
+  }
+  return null;
+}

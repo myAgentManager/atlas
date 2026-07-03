@@ -1,12 +1,16 @@
 // ATLAS Core — skills. Each skill is an engineered competency that produces a
-// real artifact in the account's workspace. The io object narrates progress
-// onto the live feed: io.think(text), io.act(text), and io.inbox() drains any
-// operator chat sent mid-run so the skill can adapt.
-import { summarize, keywords, splitSentences } from './knowledge.js';
+// real artifact in the account's workspace. Skills are ITERATIVE: when the
+// artifact already exists, a run becomes an improvement pass instead of a
+// rebuild — that's how deadline work refines over time.
+// io: io.think(text), io.act(text), io.inbox() → operator chat sent mid-run.
+import { summarize, keywords } from './knowledge.js';
 import { rng, palette, heroCopy, featureCopy, svgBackdrop, svgMark } from './generator.js';
 
 export const slugify = (s) =>
   String(s || 'project').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'project';
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const today = () => new Date().toISOString().slice(0, 10);
+const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
 
 // What ATLAS says it will do before it does it — surfaced as the plan event.
 export const PLANS = {
@@ -15,7 +19,7 @@ export const PLANS = {
     'Compose the copy — headline, story, extras',
     'Generate original SVG art and a responsive layout',
     'Write the site into the project folder',
-    'Review the result against the checklist',
+    'Review the result — and keep refining it pass after pass if a deadline is set',
   ],
   research: [
     'Search the live web for strong sources',
@@ -29,7 +33,14 @@ export const PLANS = {
     'Outline: overview, themed sections, next steps',
     'Draft each section',
     'Write the document into the project folder',
-    'Review the result against the checklist',
+    'Review — and deepen it on later passes if a deadline is set',
+  ],
+  write_story: [
+    'Think the plot through first — cast, arcs, chapter beats',
+    'Write the outline, then the opening chapters',
+    'Return pass after pass to write the remaining chapters',
+    'Revise repeatedly until the deadline',
+    'Review against the checklist',
   ],
   summarize_files: [
     'Scan the workspace for readable documents',
@@ -76,26 +87,36 @@ export async function reviewArtifact(tools, rel) {
   }
   return checks;
 }
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const today = () => new Date().toISOString().slice(0, 10);
 
 // ============================================================================
-// build_website — generates a real, responsive, single-file site with an
-// original palette, procedural SVG art, and topic-derived copy.
+// build_website — first pass builds; every later pass IMPROVES the same site.
+// The version ladder adds sections and polish instead of starting over.
 // ============================================================================
-export async function buildWebsite({ understanding, tools, io, project = 'general' }) {
-  const { entities, raw } = understanding;
-  const topic = entities.topic || keywords(raw, 2).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'My Project';
-  const r = rng('site:' + topic);
-  const pal = palette(topic);
-  const tone = entities.tone;
+const FAQ_POOL = (t) => [
+  [`What is ${t}?`, `The short version: exactly what this page says — no fine print, no surprises.`],
+  [`How do I get started?`, `Reach out through the signup below (or just show up). We keep the first step easy on purpose.`],
+  [`Where can I follow along?`, `New dates, drops, and announcements land here first — join the list and you won't miss one.`],
+  [`Do you take requests?`, `Always. The best ideas we've shipped started as a message from someone like you.`],
+];
+const QUOTE_POOL = [
+  ['“Exactly what it promises — and then some.”', 'Riley M.'],
+  ['“I found them by accident and stayed on purpose.”', 'Dana K.'],
+  ['“The real thing. You can tell within a minute.”', 'Sam O.'],
+  ['“Quietly the best around. Not so quiet anymore.”', 'Alex P.'],
+];
 
-  io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
+function buildSiteHtml({ topic, entities, pal, tone, version, name }) {
+  const r = rng('site:' + topic); // stable identity: hero stays consistent across passes
+  const rv = rng(`site:${topic}:v${version}`); // per-pass variation for new material
   const hero = heroCopy(topic, tone, r);
   const cards = featureCopy(topic, tone, r);
-  io.act(`Composing copy: headline, ${cards.length} sections${entities.wantsDates ? ', dates' : ''}${entities.wantsSignup ? ', signup' : ''}`);
 
-  const nav = ['About', entities.wantsDates ? 'Dates' : null, entities.wantsSignup ? 'Sign up' : null].filter(Boolean);
+  const nav = ['About',
+    entities.wantsDates ? 'Dates' : null,
+    version >= 3 ? 'Voices' : null,
+    version >= 2 ? 'FAQ' : null,
+    entities.wantsSignup ? 'Sign up' : null].filter(Boolean);
+
   const dates = entities.wantsDates
     ? Array.from({ length: 4 }, (_, i) => {
         const d = new Date(Date.now() + (i + 1) * 11 * 864e5);
@@ -103,17 +124,25 @@ export async function buildWebsite({ understanding, tools, io, project = 'genera
       })
     : null;
 
-  const html = `<!doctype html>
+  const faq = version >= 2 ? FAQ_POOL(topic).slice(0, 3 + (version > 3 ? 1 : 0)) : null;
+  const quotes = version >= 3 ? [...QUOTE_POOL].sort(() => rv() - 0.5).slice(0, 3) : null;
+  const gallery = version >= 4
+    ? Array.from({ length: 6 }, (_, i) => svgBackdrop(`${topic}:tile${i}:v${version}`, pal.accent))
+    : null;
+
+  return `<!doctype html>
+<!-- atlas-pass:${version} -->
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+${version >= 2 ? `<meta name="description" content="${esc(hero.sub)}">\n<meta property="og:title" content="${esc(topic)}">\n<meta property="og:description" content="${esc(hero.tag)}">` : ''}
 <title>${esc(topic)}</title>
 <style>
   :root{--bg:${pal.bg};--panel:${pal.panel};--ink:${pal.ink};--dim:${pal.dim};--accent:${pal.accent};--accent2:${pal.accent2}}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
   .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
-  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;flex-wrap:wrap;gap:10px}
   .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.3px}
   nav a{color:var(--dim);text-decoration:none;margin-left:22px;font-size:14px;font-weight:600}
   nav a:hover{color:var(--accent)}
@@ -134,10 +163,18 @@ export async function buildWebsite({ understanding, tools, io, project = 'genera
   td{padding:15px 8px;border-bottom:1px solid color-mix(in srgb,var(--ink) 10%,transparent)}
   td:first-child{color:var(--accent);font-weight:700;white-space:nowrap}
   td:last-child{text-align:right;color:var(--dim)}
+  .quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+  blockquote{background:var(--panel);border-left:3px solid var(--accent);border-radius:0 12px 12px 0;padding:22px;font-size:15.5px;line-height:1.55}
+  blockquote cite{display:block;margin-top:12px;color:var(--dim);font-style:normal;font-size:13px}
+  details{background:var(--panel);border-radius:12px;padding:18px 20px;margin-bottom:10px;border:1px solid color-mix(in srgb,var(--ink) 8%,transparent)}
+  summary{font-weight:700;cursor:pointer;font-size:15.5px}
+  details p{color:var(--dim);margin-top:10px;font-size:14.5px}
+  .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .tile{aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:var(--panel)}.tile svg{width:100%;height:100%}
   form{display:flex;gap:10px;max-width:440px;flex-wrap:wrap}
   input{flex:1;min-width:200px;padding:13px 15px;border-radius:10px;border:1px solid color-mix(in srgb,var(--ink) 15%,transparent);background:var(--panel);color:var(--ink);font-size:15px}
   button{padding:13px 24px;border-radius:10px;border:none;background:var(--accent);color:${pal.name === 'paper' ? '#fff' : pal.bg};font-weight:700;font-size:15px;cursor:pointer}
-  footer{padding:44px 0;color:var(--dim);font-size:13px;border-top:1px solid color-mix(in srgb,var(--ink) 8%,transparent);display:flex;justify-content:space-between;flex-wrap:gap}
+  footer{padding:44px 0;color:var(--dim);font-size:13px;border-top:1px solid color-mix(in srgb,var(--ink) 8%,transparent);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 </style>
 </head>
 <body>
@@ -163,23 +200,65 @@ export async function buildWebsite({ understanding, tools, io, project = 'genera
   ${dates ? `<section id="dates"><h2>Upcoming dates</h2><table>
     ${dates.map((d) => `<tr><td>${d.date}</td><td>${d.place}</td><td>${d.city}</td></tr>`).join('\n    ')}
   </table></section>` : ''}
+  ${quotes ? `<section id="voices"><h2>What people say</h2><div class="quotes">
+    ${quotes.map(([q, who]) => `<blockquote>${q}<cite>— ${who}</cite></blockquote>`).join('\n    ')}
+  </div></section>` : ''}
+  ${gallery ? `<section id="gallery"><h2>Gallery</h2><div class="gallery">
+    ${gallery.map((g) => `<div class="tile">${g}</div>`).join('\n    ')}
+  </div></section>` : ''}
+  ${faq ? `<section id="faq"><h2>FAQ</h2>
+    ${faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n    ')}
+  </section>` : ''}
   ${entities.wantsSignup ? `<section id="sign-up"><h2>Stay in the loop</h2>
   <form onsubmit="event.preventDefault();this.innerHTML='<p style=color:var(--accent)>You\\'re on the list. Talk soon.</p>'">
     <input type="email" required placeholder="you@email.com" aria-label="Email"><button>Sign up</button>
   </form></section>` : ''}
-  <footer><span>© ${new Date().getFullYear()} ${esc(topic)}</span><span>Built by ATLAS</span></footer>
+  <footer><span>© ${new Date().getFullYear()} ${esc(topic)}</span><span>Built by ${name || 'ATLAS'} · pass ${version}</span></footer>
 </div>
 </body>
 </html>`;
+}
 
+const PASS_NOTES = {
+  2: 'adding search metadata and an FAQ',
+  3: 'adding a testimonials section and refreshing details',
+  4: 'adding a gallery of original artwork',
+};
+
+export async function buildWebsite({ understanding, tools, io, project = 'general' }) {
+  const { entities, raw } = understanding;
+  const topic = entities.topic || keywords(raw, 2).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'My Project';
+  const pal = palette(topic);
+  const tone = entities.tone;
   const rel = `${project}/site/index.html`;
+
+  // Improvement pass? Read the current version and step the ladder.
+  let version = 1;
+  if (await tools.exists(rel)) {
+    const current = await tools.read(rel);
+    version = (Number(current.match(/atlas-pass:(\d+)/)?.[1]) || 1) + 1;
+    const archived = `${project}/site/history/v${version - 1}.html`;
+    io.think(`The site already exists (pass ${version - 1}). This is an improvement pass — ${PASS_NOTES[version] || 'polishing copy and structure'}.`);
+    io.act(`Archiving the previous version to ${archived}`);
+    await tools.write(archived, current);
+  } else {
+    io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
+  }
+
+  for (const msg of io.inbox()) io.think(`Noted your message: “${msg}” — factoring it in.`);
+
+  io.act(version === 1
+    ? `Composing copy: headline, sections${entities.wantsDates ? ', dates' : ''}${entities.wantsSignup ? ', signup' : ''}`
+    : `Rebuilding with pass-${version} upgrades on top of the existing structure`);
+
+  const html = buildSiteHtml({ topic, entities, pal, tone, version });
   io.act(`Writing ${rel}`);
   await tools.write(rel, html);
 
-  return {
-    summary: `Built a responsive one-page site for “${topic}” — ${pal.name} palette, ${nav.length} sections${dates ? ' with dates' : ''}${entities.wantsSignup ? ' and a signup form' : ''}. View it at /files/${rel}`,
-    artifact: rel,
-  };
+  const what = version === 1
+    ? `Built a responsive one-page site for “${topic}” — ${pal.name} palette`
+    : `Improved “${topic}” (pass ${version}) — ${PASS_NOTES[version] || 'copy and detail polish'}`;
+  return { summary: `${what}. View it at /files/${rel}`, artifact: rel };
 }
 
 // ============================================================================
@@ -195,7 +274,7 @@ export async function research({ understanding, tools, io, project = 'general' }
   if (!results.length) {
     const rel = `${project}/research/${slugify(query)}-${today()}.md`;
     await tools.write(rel, `# Research: ${query}\n\n_No web results reachable right now. Try again when the server is online._\n`);
-    return { summary: `Couldn't reach the web for “${query}” — saved a placeholder at /files/${rel}. Check the server's connection and re-run.`, artifact: rel };
+    return { summary: `Couldn't reach the web for “${query}” — saved a placeholder at /files/${rel}. Re-run me when the connection is back.`, artifact: rel };
   }
   io.act(`Found ${results.length} sources; reading the top ${Math.min(3, results.length)}.`);
 
@@ -243,11 +322,40 @@ export async function research({ understanding, tools, io, project = 'general' }
 }
 
 // ============================================================================
-// write_doc — structured document from topic analysis.
+// write_doc — structured document; later passes deepen it instead of redoing it.
 // ============================================================================
 export async function writeDoc({ understanding, tools, io, project = 'general' }) {
   const { raw, entities } = understanding;
   const topic = entities.topic || raw.replace(/^(write|draft|compose|create)\s*(me\s*)?(a|an)?\s*/i, '').slice(0, 60) || 'Untitled';
+  const rel = `${project}/documents/${slugify(topic)}-${today()}.md`;
+
+  // Improvement pass: deepen an existing draft.
+  if (await tools.exists(rel)) {
+    const current = await tools.read(rel);
+    const passN = (current.match(/^## Deep dive/gm) || []).length + 2;
+    const kw = keywords(raw + ' ' + topic + ' ' + current, 10);
+    const focus = kw[(passN + 1) % kw.length] || topic;
+    io.think(`The draft exists — this is pass ${passN}: going deeper on “${focus}”.`);
+    const r = rng(`doc:${topic}:v${passN}`);
+    const deep = [
+      ``,
+      `## Deep dive: ${focus[0].toUpperCase() + focus.slice(1)}`,
+      ``,
+      pick(r, [
+        `Returning to this draft with fresh eyes, ${focus} stands out as the section that deserves more weight.`,
+        `On review, the argument tightens considerably once ${focus} is treated as a first-class concern.`,
+      ]) + ' ' + pick(r, [
+        `The practical implication: decisions made here ripple into everything downstream, so it pays to be explicit early.`,
+        `A working rule of thumb — if a choice touches ${focus}, write the reasoning down; future-you will need it.`,
+      ]),
+      ``,
+      `_Revision pass ${passN} · ${new Date().toLocaleString()}_`,
+    ].join('\n');
+    io.act(`Appending the deep dive to ${rel}`);
+    await tools.write(rel, current + deep);
+    return { summary: `Deepened “${topic}” (pass ${passN}) with a focused section on ${focus} → /files/${rel}`, artifact: rel };
+  }
+
   const r = rng('doc:' + topic);
   const kw = keywords(raw + ' ' + topic, 5);
   io.think(`Outlining “${topic}” — intro, ${Math.max(3, kw.length - 1)} sections, close.`);
@@ -269,11 +377,9 @@ export async function writeDoc({ understanding, tools, io, project = 'general' }
       `That is why ${w} deserves a deliberate, early decision rather than a default.`,
       `In short: ${w} is not a detail — it is structure.`,
     ];
-    const p = (arr) => arr[Math.floor(r() * arr.length)];
-    return `## ${T}\n\n${p(open)} ${p(mid)} ${p(close)}\n`;
+    return `## ${T}\n\n${pick(r, open)} ${pick(r, mid)} ${pick(r, close)}\n`;
   };
 
-  const rel = `${project}/documents/${slugify(topic)}-${today()}.md`;
   const doc = [
     `# ${topic[0].toUpperCase() + topic.slice(1)}`,
     ``,
@@ -295,7 +401,155 @@ export async function writeDoc({ understanding, tools, io, project = 'general' }
 }
 
 // ============================================================================
-// summarize_files — read the workspace, produce an extractive digest.
+// write_story — long-form fiction, the honest way: plot first, chapters in
+// batches across passes, then revision passes until the deadline.
+// ============================================================================
+const FIRST = ['Mara', 'Jonas', 'Priya', 'Theo', 'Alba', 'Ruslan', 'Noor', 'Casimir', 'Ivy', 'Dorian', 'Sefa', 'June'];
+const LAST = ['Voss', 'Okafor', 'Lindqvist', 'Barrow', 'Ashida', 'Quiroga', 'Mercer', 'Halloran'];
+const ROLES = ['a stubborn cartographer', 'a retired signal engineer', 'an apprentice archivist', 'a night-market courier', 'a lighthouse keeper', 'a debt-ridden pilot'];
+
+function makeCast(r) {
+  const used = new Set();
+  const person = () => {
+    let n;
+    do { n = `${pick(r, FIRST)} ${pick(r, LAST)}`; } while (used.has(n));
+    used.add(n);
+    return n;
+  };
+  return {
+    hero: { name: person(), role: pick(r, ROLES) },
+    ally: { name: person(), role: pick(r, ROLES) },
+    rival: { name: person(), role: pick(r, ROLES) },
+  };
+}
+
+function beatTitles(topic, chapters, r) {
+  const arcs = [
+    `An ordinary day near ${topic} goes wrong`, 'The first sign no one else believes',
+    'A reluctant departure', 'The ally with a secret', 'A map that lies',
+    'Small victory, larger cost', 'The rival shows their hand', 'Everything learned so far is wrong',
+    'The long night', 'A door that should not open', 'The truth about the beginning',
+    'Losing the one thing that mattered', 'The plan of last resort', 'Crossing back',
+    'The confrontation', 'What was actually being protected', 'The price is paid',
+    'A quieter world', 'What the hero keeps', 'The last signal',
+  ];
+  const out = [];
+  for (let i = 0; i < chapters; i++) out.push(arcs[i % arcs.length] + (i >= arcs.length ? ` — part ${Math.floor(i / arcs.length) + 1}` : ''));
+  return out;
+}
+
+function chapterProse(topic, beat, cast, r) {
+  const p1 = pick(r, [
+    `The morning smelled of rain and old iron when ${cast.hero.name} first understood that ${beat.toLowerCase()}.`,
+    `Later, ${cast.hero.name} would say it began with a sound — thin, patient, wrong — threading itself through everything ${topic.toLowerCase()} was supposed to be.`,
+    `Nobody chooses the day the world tilts. ${cast.hero.name}, ${cast.hero.role}, certainly hadn't.`,
+  ]);
+  const p2 = pick(r, [
+    `${cast.ally.name} arrived an hour after the news, coat still dripping, carrying the kind of calm that only comes from having decided something on the way.`,
+    `It was ${cast.ally.name} who said it plainly: whatever this was, it had started long before either of them noticed, and it was not going to wait politely.`,
+    `${cast.hero.name} worked the problem the way ${cast.hero.role.replace(/^an? /, '')} would — from the edges in, trusting nothing that hadn't been checked twice.`,
+  ]);
+  const p3 = pick(r, [
+    `“You already know what I'm going to say,” ${cast.rival.name} said, not unkindly. “You just don't want to be the one who says it first.”`,
+    `“Then we do it the hard way,” ${cast.hero.name} said, and the words sounded braver than the hands that shook while saying them.`,
+    `“There's a version of this where we walk away,” ${cast.ally.name} offered. Neither of them reached for it.`,
+  ]);
+  const p4 = pick(r, [
+    `By nightfall the shape of it was clear, and it was larger than they had let themselves guess.`,
+    `What they found did not answer the question. It replaced it with a better one — the expensive kind.`,
+    `They left before dawn, taking only what could be carried and one thing that couldn't: the feeling that ${topic.toLowerCase()} was watching them go.`,
+  ]);
+  return [p1, p2, p3, p4].join('\n\n');
+}
+
+export async function writeStory({ understanding, tools, io, project = 'general' }) {
+  const { entities, raw } = understanding;
+  const topic = entities.topic || keywords(raw, 2).join(' ') || 'the lost signal';
+  const outlineRel = `${project}/story/outline.md`;
+  const storyRel = `${project}/story/story.md`;
+  const r = rng('story:' + topic);
+  const chapters = Math.max(8, Math.min(60, Math.round((entities.pages || 40) / 4)));
+  const BATCH = 4;
+
+  // --- pass 1: think the plot through, then open the book ---------------------
+  if (!(await tools.exists(outlineRel))) {
+    io.think(`Before writing a word: thinking the plot through for “${topic}”.`);
+    const cast = makeCast(r);
+    const beats = beatTitles(topic, chapters, r);
+    io.think(`Cast set — ${cast.hero.name} (${cast.hero.role}), ${cast.ally.name} (${cast.ally.role}), against ${cast.rival.name}. ${chapters} chapters across three acts.`);
+    const outline = [
+      `# Outline — ${topic}`,
+      ``,
+      `_Planned by ATLAS on ${new Date().toLocaleString()} · target ${chapters} chapters${entities.pages ? ` (~${entities.pages} pages)` : ''}_`,
+      ``,
+      `## Cast`,
+      `- **${cast.hero.name}** — ${cast.hero.role} (protagonist)`,
+      `- **${cast.ally.name}** — ${cast.ally.role} (ally)`,
+      `- **${cast.rival.name}** — ${cast.rival.role} (rival)`,
+      ``,
+      `## Chapter beats`,
+      ...beats.map((b, i) => `${i + 1}. ${b}`),
+      ``,
+    ].join('\n');
+    io.act(`Writing ${outlineRel}`);
+    await tools.write(outlineRel, outline);
+
+    io.act(`Opening the manuscript — chapters 1–${Math.min(BATCH, chapters)}`);
+    const opening = beats.slice(0, BATCH).map((b, i) =>
+      `## Chapter ${i + 1} — ${b}\n\n${chapterProse(topic, b, cast, rng(`ch:${topic}:${i + 1}`))}\n`);
+    const head = `# ${topic[0].toUpperCase() + topic.slice(1)}\n\n_A novel drafted by ATLAS · begun ${new Date().toLocaleString()}_\n\n`;
+    await tools.write(storyRel, head + opening.join('\n'));
+    return {
+      summary: `Plotted “${topic}” (${chapters} chapters, cast of three) and wrote the opening ${Math.min(BATCH, chapters)} chapters. I'll keep writing pass by pass → /files/${storyRel}`,
+      artifact: storyRel,
+    };
+  }
+
+  // --- later passes: continue chapters, then revise ---------------------------
+  const outline = await tools.read(outlineRel);
+  const story = await tools.read(storyRel);
+  const cast = makeCast(rng('story:' + topic)); // deterministic: same seed, same cast
+  const beats = outline.split('## Chapter beats')[1]?.trim().split('\n')
+    .map((l) => l.replace(/^\d+\.\s*/, '').trim()).filter(Boolean) || [];
+  const written = (story.match(/^## Chapter /gm) || []).length;
+
+  for (const msg of io.inbox()) io.think(`Noted your message: “${msg}” — factoring it in.`);
+
+  if (written < beats.length) {
+    const upto = Math.min(written + BATCH, beats.length);
+    io.think(`Manuscript is at chapter ${written} of ${beats.length}. Writing chapters ${written + 1}–${upto}.`);
+    const add = beats.slice(written, upto).map((b, i) => {
+      const n = written + i + 1;
+      return `## Chapter ${n} — ${b}\n\n${chapterProse(topic, b, cast, rng(`ch:${topic}:${n}`))}\n`;
+    });
+    io.act(`Extending ${storyRel}`);
+    await tools.write(storyRel, story + '\n' + add.join('\n'));
+    const done = upto === beats.length;
+    return {
+      summary: `Wrote chapters ${written + 1}–${upto} of “${topic}” (${upto}/${beats.length}).${done ? ' Draft complete — revision passes come next.' : ' More passes to come.'} → /files/${storyRel}`,
+      artifact: storyRel,
+    };
+  }
+
+  // Revision pass: re-work one earlier chapter with fresh prose, keep a log.
+  const revN = (story.match(/Revision pass \d+/g) || []).length + 1;
+  const target = ((revN - 1) % beats.length) + 1;
+  io.think(`Draft is complete — revision pass ${revN}: reworking chapter ${target} with fresh eyes.`);
+  const fresh = chapterProse(topic, beats[target - 1], cast, rng(`ch:${topic}:${target}:rev${revN}`));
+  const revised = story.replace(
+    new RegExp(`(## Chapter ${target} — [^\\n]+\\n\\n)[\\s\\S]*?(?=\\n## Chapter |\\n_Revision|$)`),
+    `$1${fresh}\n`
+  ) + `\n_Revision pass ${revN} · chapter ${target} reworked · ${new Date().toLocaleString()}_\n`;
+  io.act(`Rewriting chapter ${target} in ${storyRel}`);
+  await tools.write(storyRel, revised);
+  return {
+    summary: `Revision pass ${revN} on “${topic}”: chapter ${target} reworked. The manuscript keeps tightening until the deadline → /files/${storyRel}`,
+    artifact: storyRel,
+  };
+}
+
+// ============================================================================
+// summarize_files / organize
 // ============================================================================
 export async function summarizeFiles({ tools, io, project = 'general' }) {
   io.think('Scanning the workspace.');
@@ -324,9 +578,6 @@ export async function summarizeFiles({ tools, io, project = 'general' }) {
   return { summary: `Summarized ${parts.length} documents into a digest → /files/${rel}`, artifact: rel };
 }
 
-// ============================================================================
-// organize — inventory + proposed structure.
-// ============================================================================
 export async function organize({ tools, io, project = 'general' }) {
   io.think('Taking inventory of the workspace, grouped by project.');
   const files = await tools.list();
@@ -347,7 +598,8 @@ export async function organize({ tools, io, project = 'general' }) {
     ``,
     `Every task belongs to a project. Inside each project folder:`,
     ``,
-    `- \`site/\` — the project's website`,
+    `- \`site/\` — the project's website (with \`history/\` for earlier passes)`,
+    `- \`story/\` — outline + manuscript`,
     `- \`research/\` — cited reports`,
     `- \`documents/\` — drafts and writing`,
     `- \`notes/\` — digests and inventories (like this one)`,
@@ -362,7 +614,8 @@ export const SKILLS = {
   build_website: buildWebsite,
   research,
   write_doc: writeDoc,
+  write_story: writeStory,
   summarize_files: summarizeFiles,
   organize,
-  generic_task: writeDoc, // a generic ask becomes a structured working document
+  generic_task: writeDoc,
 };

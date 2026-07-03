@@ -21,8 +21,22 @@ function adminUser(req) {
   return true;
 }
 
+// IP allowlist: when ADMIN_ALLOWED_IPS is set, the console does not exist for
+// anyone else — they get a plain 404, not a login page. Localhost is always
+// allowed so you can't lock yourself out of your own machine.
+const ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+function ipAllowed(req) {
+  if (!ALLOWED_IPS.length) return true;
+  const ip = String(req.ip || '').replace(/^::ffff:/, '');
+  if (ip === '127.0.0.1' || ip === '::1') return true;
+  return ALLOWED_IPS.includes(ip);
+}
+
 export function startAdmin({ enqueue }) {
   const app = express();
+  if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // real client IPs behind Render/nginx
+  app.use((req, res, next) => (ipAllowed(req) ? next() : res.status(404).type('text/plain').send('Not Found')));
   app.use(express.json());
 
   // --- gate -------------------------------------------------------------------
@@ -32,7 +46,7 @@ export function startAdmin({ enqueue }) {
     const given = String(req.body?.code || '');
     const ok = given.length === config.adminCode.length &&
       crypto.timingSafeEqual(Buffer.from(given), Buffer.from(config.adminCode));
-    if (!ok) { auth.rateFail(key, 5, 10 * 60_000); auth.audit('admin', `bad admin code from ${req.ip}`); return res.status(401).json({ error: 'Wrong code.' }); }
+    if (!ok) { auth.rateFail(key, 5, 10 * 60_000); auth.audit('admin', `bad admin code from ${req.ip}`); return res.status(401).json({ error: 'Invalid access code. This attempt has been logged.' }); }
     auth.rateClear(key);
     const token = crypto.randomBytes(24).toString('hex');
     adminSessions.set(token, Date.now() + SESSION_MS);
@@ -174,26 +188,32 @@ input:focus{box-shadow:inset 0 2px 5px rgba(0,0,0,.65),0 0 0 2px rgba(245,177,74
 
 const LOCK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
 
-const GATE = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>myAgent · admin</title><style>${CSS}
+const GATE = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas Network · Operations</title><style>${CSS}
 .gatewrap{min-height:100vh;display:grid;place-items:center}
-.gate{width:min(380px,92vw);text-align:center;padding:34px 28px}
+.gate{width:min(400px,92vw);text-align:center;padding:36px 30px}
 .keyhole{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;color:var(--amber);background:var(--well);box-shadow:inset 0 2px 8px rgba(0,0,0,.8),0 0 24px rgba(245,177,74,.15)}
-.gate h1{margin-bottom:6px}.gate p{color:var(--dim);font-size:13.5px;margin-bottom:22px}
-.gate input{text-align:center;font-size:22px;letter-spacing:10px;font-family:ui-monospace,Menlo,monospace}
+.gate h1{margin-bottom:4px;font-size:20px}
+.gate .sub{color:var(--amber);font-size:10.5px;letter-spacing:2.5px;text-transform:uppercase;font-weight:700;margin-bottom:10px}
+.gate p{color:var(--dim);font-size:13px;margin-bottom:22px;line-height:1.55}
+.gate input{text-align:center;font-size:16px;letter-spacing:2px;font-family:ui-monospace,Menlo,monospace}
 .gate .btn{width:100%;margin-top:14px;padding:12px;font-size:14px;color:#1a1206;background:linear-gradient(180deg,#ffd27a,#f5b14a 48%,#c98a1e 52%,#d99b2e);border-color:rgba(80,50,0,.6)}
+.gate .foot{margin-top:18px;color:var(--faint);font-size:11px;letter-spacing:.4px}
 </style></head><body><div class="gatewrap"><form class="gate panel" onsubmit="go(event)">
 <div class="keyhole"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="15.5" r="1.6"/></svg></div>
-<h1>Admin console</h1><p>Enter the admin code to unlock this station.</p>
-<input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="••••••" autofocus>
+<div class="sub">Atlas Network</div>
+<h1>Operations Console</h1>
+<p>Restricted area. Access is limited to authorized administrators from approved locations.</p>
+<input id="code" type="password" autocomplete="current-password" placeholder="Access code" autofocus>
 <div class="err" id="err"></div>
-<button class="btn">Unlock</button>
+<button class="btn">Authenticate</button>
+<div class="foot">All access attempts are recorded in the audit log.</div>
 </form></div><script>
 const BASE=location.pathname.replace(/\\/$/,'');
-async function go(e){e.preventDefault();const r=await fetch(BASE+'/gate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('code').value})});const d=await r.json().catch(()=>({}));if(r.ok)location.reload();else document.getElementById('err').textContent=d.error||'Wrong code.'}
+async function go(e){e.preventDefault();const r=await fetch(BASE+'/gate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:document.getElementById('code').value})});const d=await r.json().catch(()=>({}));if(r.ok)location.reload();else document.getElementById('err').textContent=d.error||'Invalid access code.'}
 </script></body></html>`;
 
-const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>myAgent · admin</title><style>${CSS}</style></head><body><div class="wrap">
-<div class="top"><h1>myAgent <span style="color:var(--amber)">admin</span></h1>
+const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas Network · Operations</title><style>${CSS}</style></head><body><div class="wrap">
+<div class="top"><h1>Atlas Network <span style="color:var(--amber)">Operations</span></h1>
 <div><span class="tag mono" id="host"></span> <button class="btn" onclick="lockNow()">Lock</button></div></div>
 
 <div class="panel"><h2>${LOCK_SVG} System</h2><div class="grid" id="stats"></div></div>

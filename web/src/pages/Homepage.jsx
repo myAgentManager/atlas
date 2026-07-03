@@ -94,6 +94,50 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
         </div>
       </section>
 
+      {/* the Atlas Network */}
+      <section className="band atlas-band" id="atlas-network">
+        <div className="band-head">
+          <div className="eyebrow center"><Icon name="globe" size={14} /> The Atlas Network</div>
+          <h2 className="band-title">One agent. A whole network behind it.</h2>
+          <p className="band-sub">
+            {name} isn't a wrapper around someone else's model — it's an original engine,
+            and every part of it runs inside your account's private slice of the network.
+          </p>
+        </div>
+        <div className="atlas-grid-home">
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="brain" size={18} /><span>Understanding</span></div>
+            <p>A from-scratch language layer reads your brief — intent, topic, tone, deadline — and asks before it assumes.</p>
+          </div>
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="code" size={18} /><span>Planning</span></div>
+            <p>Every task starts with a numbered plan posted to your feed, so you always know what {name} is about to do.</p>
+          </div>
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="globe" size={18} /><span>Live web reach</span></div>
+            <p>Searches and reads the open web for current information — research reports come back with citations.</p>
+          </div>
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="refresh" size={18} /><span>Refinement</span></div>
+            <p>Give it a deadline and it doesn't rush — it drafts, then returns pass after pass, improving until the hour you set.</p>
+          </div>
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="eye" size={18} /><span>Self-review</span></div>
+            <p>Before sign-off, {name} re-opens its own work and runs a quality checklist. You see every check in the feed.</p>
+          </div>
+          <div className="anode panel">
+            <div className="anode-top"><Icon name="lock" size={18} /><span>Private by design</span></div>
+            <p>Your tasks, chats, and files live in your account only. Nothing is shared unless you mint a link — revocable anytime.</p>
+          </div>
+        </div>
+        <div className="atlas-ticker">
+          <span className="ticker-item"><b>{engine.skills ?? 6}</b> skills</span>
+          <span className="ticker-item"><b>{engine.intents ?? 9}</b> intents</span>
+          <span className="ticker-item"><b>{engine.vocab ?? '—'}</b> word vocabulary</span>
+          <span className="ticker-item"><b>0</b> external AI calls</span>
+        </div>
+      </section>
+
       {/* meet ATLAS */}
       <section className="band meet">
         <div className="meet-left">

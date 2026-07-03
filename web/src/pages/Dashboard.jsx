@@ -302,13 +302,20 @@ function Feed({ task, name }) {
 }
 
 // Turn "/files/…" references in results into clickable artifact links.
+// Keeps extensions intact (index.html) — only sentence punctuation is trimmed.
 function Linkified({ text }) {
-  const parts = String(text).split(/(\/files\/[^\s.,)]+)/g);
-  return parts.map((p, i) =>
-    p.startsWith('/files/')
-      ? <a key={i} className="artifact-link" href={p} target="_blank" rel="noreferrer"><Icon name="file" size={12} /> {p.replace('/files/', '')}</a>
-      : <span key={i}>{p}</span>
-  );
+  const parts = String(text).split(/(\/files\/[^\s,)"']+)/g);
+  return parts.map((p, i) => {
+    if (!p.startsWith('/files/')) return <span key={i}>{p}</span>;
+    const trailing = p.match(/[.·]+$/)?.[0] || '';       // "…index.html." → keep .html, drop the period
+    const href = trailing ? p.slice(0, -trailing.length) : p;
+    return (
+      <React.Fragment key={i}>
+        <a className="artifact-link" href={href} target="_blank" rel="noreferrer"><Icon name="file" size={12} /> {href.replace('/files/', '')}</a>
+        {trailing}
+      </React.Fragment>
+    );
+  });
 }
 
 function FeedLine({ ev }) {

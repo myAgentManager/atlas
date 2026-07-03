@@ -210,6 +210,8 @@ app.get('/api/tasks/:id', auth.requireAuth, ownTask, (req, res) => res.json(req.
 app.post('/api/tasks', auth.requireAuth, (req, res) => {
   const { title, prompt, project, schedule, notify, runNow } = req.body || {};
   if (!prompt || !prompt.trim()) return bad(res, 400, 'prompt is required');
+  const gate = checkContent(`${title || ''} ${prompt}`);
+  if (!gate.ok) return bad(res, 400, declineMessage(gate.topic));
   const task = store.createTask({ userId: req.user.id, title, prompt, project, schedule, notify });
   if (runNow) enqueue(task.id);
   res.status(201).json(task);
@@ -236,7 +238,7 @@ app.post('/api/tasks/:id/stop', auth.requireAuth, ownTask, (req, res) => res.jso
 app.post('/api/tasks/:id/chat', auth.requireAuth, ownTask, (req, res) => {
   const message = (req.body?.message || '').trim();
   if (!message) return bad(res, 400, 'message required');
-  taskChat(req.task.id, message);
+  if (taskChat(req.task.id, message)) enqueue(req.task.id); // clarification answered → go
   res.json({ ok: true });
 });
 
@@ -320,6 +322,8 @@ app.get('/api/v1/tasks/:id', apiAuth, (req, res) => {
 app.post('/api/v1/tasks', apiAuth, (req, res) => {
   const { title, prompt, project, schedule, runNow = true } = req.body || {};
   if (!prompt || !String(prompt).trim()) return bad(res, 400, 'prompt is required');
+  const gate = checkContent(`${title || ''} ${prompt}`);
+  if (!gate.ok) return bad(res, 400, declineMessage(gate.topic));
   const task = store.createTask({ userId: req.user.id, title, prompt: String(prompt), project, schedule });
   if (runNow) enqueue(task.id);
   res.status(201).json(publicTask(task));
@@ -395,11 +399,13 @@ async function drain() {
   }
   draining = false;
 }
+// Wakes anything due: recurring schedules AND deadline improvement passes
+// (the agent sets nextRunAt on manual/once tasks while a deadline is ahead).
 setInterval(() => {
   const now = Date.now();
   for (const task of store.listTasks()) {
-    if (!task.schedule || task.schedule.type === 'manual') continue;
     if (isRunning(task.id) || queue.includes(task.id)) continue;
+    if (task.status === 'awaiting-input') continue; // blocked on the operator
     if (task.nextRunAt && now >= task.nextRunAt) {
       store.updateTask(task.id, { nextRunAt: store.computeNextRun(task.schedule, now) });
       enqueue(task.id);

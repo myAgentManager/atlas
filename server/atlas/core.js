@@ -27,6 +27,7 @@ const INTENT_LABEL = {
   build_website: 'build a website',
   research: 'research on the web',
   write_doc: 'draft a document',
+  write_story: 'write long-form fiction',
   summarize_files: 'summarize the workspace',
   organize: 'organize the workspace',
   generic_task: 'produce a working document',
@@ -39,7 +40,14 @@ export async function execute(task, io, prefs = {}) {
   const tools = forUser(task.userId);
 
   io.event('thought', `Parsing the brief: “${task.prompt.slice(0, 140)}${task.prompt.length > 140 ? '…' : ''}”`);
-  const understanding = understand(task.prompt);
+  // Fold in the operator's clarification answer, if they gave one.
+  const fullBrief = task.clarify?.answer
+    ? `${task.prompt}\n${task.clarify.answer}`
+    : task.prompt;
+  const understanding = understand(fullBrief);
+  if (task.clarify?.answer) {
+    io.event('thought', `Working with your clarification: “${task.clarify.answer.slice(0, 120)}”`);
+  }
   // Personalization: account's preferred voice wins unless the brief asks otherwise.
   if (!understanding.entities.toneExplicit && prefs.tone && prefs.tone !== 'auto') {
     understanding.entities.tone = prefs.tone;
@@ -55,6 +63,19 @@ export async function execute(task, io, prefs = {}) {
   // Chat-ish intents assigned as tasks still deserve a useful artifact.
   const skillName = SKILLS[understanding.intent] ? understanding.intent : 'generic_task';
   const skill = SKILLS[skillName];
+
+  // If the brief points at a live URL, read it first for context.
+  if (understanding.entities.urls[0]) {
+    const url = understanding.entities.urls[0];
+    io.event('tool', `Reading ${url} for context`);
+    try {
+      const page = await tools.fetchPage(url);
+      understanding.webContext = summarize(page, 3);
+      io.event('thought', 'Context absorbed — folding it into the work.');
+    } catch (e) {
+      io.event('tool', `Couldn't read ${url} (${e.message}) — continuing without it.`);
+    }
+  }
 
   // Everything this task produces lives under one project folder.
   const project = slugify(task.project || understanding.entities.topic || 'general');
@@ -117,9 +138,9 @@ export function converse({ userId, message, tasks, prefs = {} }) {
     }
     case 'capability_chat':
       return [
-        `I'm ATLAS — a from-scratch AI engine that lives on this server. No cloud model behind me; my NLU, planner, and generators are all local and original.`,
-        `What I do best right now: build one-page websites, research topics on the live web with cited reports, draft structured documents, and summarize or organize your workspace.`,
-        `Schedule me for overnight runs with deadlines, and I'll text you when I'm done if you've set up SMS in Settings.`,
+        `I'm ATLAS — the Atlas Network's own engine, built from scratch. No external AI behind me; my understanding, planning, and writing are original code.`,
+        `What I do: build websites, research the live web into cited reports, draft documents, and write long-form stories — plot first, then chapters, then revisions.`,
+        `Give me a deadline and I don't rush: I draft, then return pass after pass improving the work until the hour you set. If your brief is ambiguous, I'll ask one sharp question before starting.`,
       ].join(' ');
     default: {
       // Try recall from long-term memory first.

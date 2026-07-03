@@ -51,6 +51,11 @@ export const api = {
   share: (path) => post('/api/shares', { path }),
   revokeShare: (token) => send(`/api/shares/${token}`, 'DELETE'),
 
+  // projects
+  projects: () => get('/api/projects'),
+  projectChat: (slug) => get(`/api/projects/${encodeURIComponent(slug)}/chat`),
+  projectSend: (slug, message, file) => post(`/api/projects/${encodeURIComponent(slug)}/chat`, { message, file }),
+
   // Atlas Database
   dbOverview: () => get('/api/db'),
   dbCreateCollection: (project, name) => post(`/api/db/${encodeURIComponent(project)}/collections`, { name }),

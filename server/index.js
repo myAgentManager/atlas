@@ -13,6 +13,7 @@ import { runTask, stopTask, isRunning, taskChat, atlasChat } from './agent.js';
 import { engineInfo, converse } from './atlas/core.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
 import { understand, titleFor } from './atlas/nlu.js';
+import { slugify } from './atlas/skills.js';
 import { smsReady } from './notify.js';
 import { forUser, mimeFor } from './tools.js';
 import { startAdmin } from './admin.js';
@@ -218,7 +219,7 @@ app.post('/api/tasks', auth.requireAuth, (req, res) => {
   if (!gate.ok) return bad(res, 400, declineMessage(gate.topic));
   // ATLAS names the task itself unless the operator supplied a title.
   const finalTitle = title?.trim() || titleFor(understand(prompt));
-  const task = store.createTask({ userId: req.user.id, title: finalTitle, prompt, project, schedule, notify });
+  const task = store.createTask({ userId: req.user.id, title: finalTitle, prompt, project, schedule, notify, target: req.body?.target });
   if (runNow) enqueue(task.id);
   res.status(201).json(task);
 });
@@ -256,6 +257,78 @@ app.post('/api/atlas/chat', auth.requireAuth, (req, res) => {
   const message = (req.body?.message || '').trim();
   if (!message) return bad(res, 400, 'message required');
   res.json({ reply: atlasChat(req.user.id, message) });
+});
+
+// ============================================================================
+// Projects — the organizing unit: merged view of tasks, files, and databases
+// ============================================================================
+app.get('/api/projects', auth.requireAuth, async (req, res) => {
+  const uid = req.user.id;
+  const map = new Map();
+  const entry = (slug, name) => {
+    if (!map.has(slug)) map.set(slug, { slug, name: name || prettify(slug), tasks: 0, running: 0, done: 0, files: 0, collections: 0, updatedAt: 0 });
+    return map.get(slug);
+  };
+  for (const t of store.listTasks(uid)) {
+    const e = entry(slugify(t.project || 'general'), t.project);
+    e.tasks++;
+    if (t.status === 'running' || t.status === 'awaiting-input' || t.status === 'queued') e.running++;
+    if (t.status === 'done') e.done++;
+    e.updatedAt = Math.max(e.updatedAt, t.updatedAt || 0);
+  }
+  for (const f of await forUser(uid).list()) {
+    const top = f.path.includes('/') ? f.path.split('/')[0] : 'general';
+    const e = entry(top);
+    e.files++;
+    e.updatedAt = Math.max(e.updatedAt, f.mtime || 0);
+  }
+  for (const p of adb.overview(uid)) entry(p.project).collections = p.collections.length;
+  res.json([...map.values()].sort((a, b) => b.updatedAt - a.updatedAt));
+});
+const prettify = (slug) => String(slug).split('-').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : '')).join(' ');
+
+// Project chat: ask about the project — or click a file and give feedback,
+// which spins up a targeted refinement task.
+app.get('/api/projects/:slug/chat', auth.requireAuth, (req, res) =>
+  res.json(store.projectChatHistory(req.user.id, req.params.slug)));
+
+app.post('/api/projects/:slug/chat', auth.requireAuth, async (req, res) => {
+  const slug = req.params.slug;
+  const message = String(req.body?.message || '').trim();
+  const file = String(req.body?.file || '').trim() || null;
+  if (!message) return bad(res, 400, 'message required');
+  const gate = checkContent(message);
+  store.addProjectChat(req.user.id, slug, 'user', message, file ? { file } : null);
+  if (!gate.ok) {
+    const reply = store.addProjectChat(req.user.id, slug, 'atlas', declineMessage(gate.topic));
+    return res.json({ reply });
+  }
+
+  if (file) {
+    // Feedback pinned to a file → targeted refinement task.
+    if (!file.startsWith(`${slug}/`) || !(await forUser(req.user.id).exists(file))) {
+      return bad(res, 404, 'that file is not in this project');
+    }
+    const base = file.split('/').pop();
+    const task = store.createTask({
+      userId: req.user.id,
+      title: `Refine ${base}`,
+      prompt: `Improve ${file} using this feedback from the operator: ${message}`,
+      project: slug,
+      target: file,
+    });
+    enqueue(task.id);
+    const reply = store.addProjectChat(req.user.id, slug, 'atlas',
+      `On it — I'm refining ${base} with that feedback now. Watch “Refine ${base}” in this project's tasks.`);
+    return res.json({ reply, taskId: task.id });
+  }
+
+  const u = req.user;
+  const reply = store.addProjectChat(req.user.id, slug, 'atlas', converse({
+    userId: u.id, message, tasks: store.listTasks(),
+    prefs: { tone: u.settings?.tone, callMe: u.settings?.callMe },
+  }));
+  res.json({ reply });
 });
 
 // ============================================================================

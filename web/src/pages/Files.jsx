@@ -3,71 +3,79 @@ import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 
-// The workspace: everything ATLAS has made, in a real folder tree. Preview any
-// file, share it by link, download or delete — and push feedback on a specific
-// file to send ATLAS back for an improvement pass.
-export default function Files() {
+// The workspace file browser. Standalone it shows everything; with a `project`
+// prop it scopes to that project's folder (paths shown relative). Preview,
+// share, download, delete — and push feedback to refine a specific file.
+export default function Files({ project = null }) {
   const [files, setFiles] = useState([]);
   const [shares, setShares] = useState([]);
   const [open, setOpen] = useState(new Set());
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(null); // full path
   const [preview, setPreview] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [refining, setRefining] = useState(false);
 
   const reload = () => {
-    api.files().then((f) => {
-      setFiles(f);
+    api.files().then((all) => {
+      const scoped = project
+        ? all.filter((x) => x.path.startsWith(project + '/'))
+            .map((x) => ({ ...x, full: x.path, path: x.path.slice(project.length + 1) }))
+        : all.map((x) => ({ ...x, full: x.path }));
+      setFiles(scoped);
       // open top-level folders by default
-      setOpen((prev) => { const n = new Set(prev); for (const x of f) n.add(x.path.split('/')[0]); return n; });
+      setOpen((prev) => { const n = new Set(prev); for (const x of scoped) n.add(x.path.split('/')[0]); return n; });
     }).catch(() => {});
     api.shares().then(setShares).catch(() => {});
   };
-  useEffect(reload, []);
+  useEffect(reload, [project]); // eslint-disable-line
 
   const tree = useMemo(() => buildTree(files), [files]);
-  const shareFor = (path) => shares.find((s) => s.path === path);
+  const shareFor = (full) => shares.find((s) => s.path === full);
   const toggle = (p) => setOpen((prev) => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; });
 
   async function openFile(f) {
-    setSelected(f.path);
+    setSelected(f.full);
     setFeedback('');
     const ext = (f.path.match(/\.(\w+)$/)?.[1] || '').toLowerCase();
-    if (['html', 'htm', 'svg'].includes(ext)) setPreview({ kind: 'frame', src: '/files/' + f.path });
+    if (['html', 'htm', 'svg'].includes(ext)) setPreview({ kind: 'frame', src: '/files/' + f.full });
     else if (['md', 'txt', 'json', 'css', 'js'].includes(ext)) {
-      const text = await fetch('/files/' + f.path).then((r) => r.text()).catch(() => '(unreadable)');
+      const text = await fetch('/files/' + f.full).then((r) => r.text()).catch(() => '(unreadable)');
       setPreview({ kind: 'text', content: text.slice(0, 40000) });
     } else setPreview({ kind: 'binary' });
   }
 
   async function toggleShare(f) {
-    const existing = shareFor(f.path);
+    const existing = shareFor(f.full);
     if (existing) { await api.revokeShare(existing.token).catch(() => {}); toast('Link revoked — file is private again.'); }
     else {
-      const s = await api.share(f.path).catch((e) => { toast(e.message, 'err'); return null; });
+      const s = await api.share(f.full).catch((e) => { toast(e.message, 'err'); return null; });
       if (s) { try { await navigator.clipboard.writeText(s.url); toast('Public link copied.', 'ok'); } catch { toast(s.url); } }
     }
     reload();
   }
 
   async function remove(f) {
-    await api.deleteFile(f.path).catch((e) => toast(e.message, 'err'));
-    if (selected === f.path) { setSelected(null); setPreview(null); }
+    await api.deleteFile(f.full).catch((e) => toast(e.message, 'err'));
+    if (selected === f.full) { setSelected(null); setPreview(null); }
     reload();
     toast('File deleted.');
   }
 
-  // Push feedback → an improvement task on this file's project.
+  // Push feedback → a refinement task targeted at this exact file.
   async function pushFeedback() {
     const note = feedback.trim();
     if (!note || !selected) return;
-    const project = selected.split('/')[0];
-    const kind = /\.html?$/.test(selected) ? 'website' : /story/.test(selected) ? 'story' : 'document';
+    const proj = project || selected.split('/')[0];
     setRefining(true);
     try {
-      await api.create({ project, prompt: `Improve the ${project} ${kind} — specific feedback: ${note}`, runNow: true });
+      await api.create({
+        project: proj,
+        target: selected,
+        prompt: `Improve ${selected} using this feedback from the operator: ${note}`,
+        runNow: true,
+      });
       setFeedback('');
-      toast(`Sent back to ATLAS to refine ${project}.`, 'ok');
+      toast(`ATLAS is refining ${selected.split('/').pop()}.`, 'ok');
     } catch (e) { toast(e.message, 'err'); }
     finally { setRefining(false); }
   }
@@ -76,9 +84,9 @@ export default function Files() {
     <div className="files-grid">
       <section className="col">
         <div className="panel tasklist">
-          <div className="panel-title"><Icon name="file" size={14} /> Workspace <span className="count-chip">{files.length}</span></div>
+          <div className="panel-title"><Icon name="file" size={14} /> {project ? 'Project files' : 'Workspace'} <span className="count-chip">{files.length}</span></div>
           <div className="task-scroll">
-            {files.length === 0 && <div className="empty">Nothing here yet. Everything ATLAS builds — sites, reports, stories — lands in your private workspace, organized by project.</div>}
+            {files.length === 0 && <div className="empty">Nothing here yet. Everything ATLAS builds for this project lands here.</div>}
             <Tree node={tree} depth={0} open={open} toggle={toggle} selected={selected}
               onFile={openFile} shareFor={shareFor} onShare={toggleShare} onDelete={remove} />
           </div>
@@ -147,9 +155,9 @@ function Tree({ node, depth, open, toggle, selected, onFile, shareFor, onShare, 
         );
       })}
       {node.files.map((f) => {
-        const shared = Boolean(shareFor(f.path));
+        const shared = Boolean(shareFor(f.full));
         return (
-          <div key={f.path} className={`tree-file ${selected === f.path ? 'active' : ''}`}
+          <div key={f.full} className={`tree-file ${selected === f.full ? 'active' : ''}`}
             style={{ paddingLeft: 10 + depth * 14 }} onClick={() => onFile(f)}>
             <Icon name="file" size={14} />
             <div className="file-main">
@@ -158,7 +166,7 @@ function Tree({ node, depth, open, toggle, selected, onFile, shareFor, onShare, 
             </div>
             <div className="task-controls" onClick={(e) => e.stopPropagation()}>
               <button className={`mini-btn ${shared ? 'lit' : ''}`} title={shared ? 'Revoke link' : 'Public link'} onClick={() => onShare(f)}><Icon name="globe" size={13} /></button>
-              <a className="mini-btn" title="Download" href={'/files/' + f.path} download><Icon name="arrow" size={13} className="down" /></a>
+              <a className="mini-btn" title="Download" href={'/files/' + f.full} download><Icon name="arrow" size={13} className="down" /></a>
               <button className="mini-btn ghost" title="Delete" onClick={() => onDelete(f)}><Icon name="close" size={13} /></button>
             </div>
           </div>

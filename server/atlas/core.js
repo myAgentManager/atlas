@@ -80,8 +80,19 @@ export async function execute(task, io, prefs = {}) {
   // Everything this task produces lives under one project folder.
   const project = slugify(task.project || understanding.entities.topic || 'general');
 
+  // Targeted refinement: when the task points at a specific file, route by
+  // WHAT is being edited — never by guessing intent from the feedback text.
+  let routedSkill = skillName;
+  if (task.target) {
+    if (/\.html?$/i.test(task.target)) routedSkill = 'build_website';
+    else if (/\/story\//.test(task.target)) routedSkill = 'write_story';
+    else routedSkill = 'write_doc';
+    io.event('thought', `Target file: ${task.target} — this is a focused refinement, not a new build.`);
+  }
+  const finalSkill = SKILLS[routedSkill] || skill;
+
   // Think first: lay the plan out loud before touching anything.
-  const steps = PLANS[skillName] || PLANS.generic_task;
+  const steps = PLANS[routedSkill] || PLANS.generic_task;
   io.event('plan', `Project: ${project}\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
 
   const skillIo = {
@@ -90,7 +101,7 @@ export async function execute(task, io, prefs = {}) {
     inbox: io.inbox,
   };
 
-  const result = await skill({ understanding, tools, io: skillIo, project });
+  const result = await finalSkill({ understanding, tools, io: skillIo, project, target: task.target || null });
 
   // Go over it: re-open the artifact and run the quality checklist.
   if (result?.artifact) {

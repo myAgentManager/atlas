@@ -44,14 +44,37 @@ export function Icon({ name, size = 20, className = '' }) {
   );
 }
 
-// The myAgent mark: an orbit with a rising node — original, drawn for this app.
+// The Atlas Networks mark: a glossy deep-blue globe with white continents and
+// a gel highlight — transparent outside the sphere. Hand-drawn original.
 export function Mark({ size = 28 }) {
+  const uid = React.useId().replace(/:/g, '');
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
-      <circle cx="24" cy="24" r="19" stroke="var(--cyan)" strokeWidth="2.4" strokeDasharray="86 34" strokeLinecap="round" transform="rotate(-58 24 24)" />
-      <circle cx="24" cy="24" r="8.5" fill="var(--cyan)" opacity="0.16" />
-      <circle cx="24" cy="24" r="4.5" fill="var(--cyan)" />
-      <circle cx="37.5" cy="12" r="3" fill="var(--cyan)" />
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+      <defs>
+        <radialGradient id={`sea${uid}`} cx="36%" cy="30%" r="85%">
+          <stop offset="0%" stopColor="#3f7fca" />
+          <stop offset="45%" stopColor="#1e4f96" />
+          <stop offset="80%" stopColor="#0e2a5c" />
+          <stop offset="100%" stopColor="#081a3d" />
+        </radialGradient>
+        <linearGradient id={`gloss${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <clipPath id={`disc${uid}`}><circle cx="32" cy="32" r="28" /></clipPath>
+      </defs>
+      <circle cx="32" cy="32" r="28" fill={`url(#sea${uid})`} />
+      <g clipPath={`url(#disc${uid})`} fill="#f4f8fd">
+        {/* abstracted continents — americas center, africa/europe right, like the mark */}
+        <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
+        <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".95" />
+        <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
+        <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".9" />
+      </g>
+      {/* gel highlight */}
+      <ellipse cx="25" cy="17" rx="16" ry="9" fill={`url(#gloss${uid})`} opacity="0.75" />
+      <circle cx="41" cy="14" r="3.2" fill="#ffffff" opacity="0.85" />
+      <circle cx="32" cy="32" r="27.4" stroke="#7db4e8" strokeOpacity="0.35" strokeWidth="1" />
     </svg>
   );
 }

@@ -225,25 +225,28 @@ const PASS_NOTES = {
   4: 'adding a gallery of original artwork',
 };
 
-export async function buildWebsite({ understanding, tools, io, project = 'general' }) {
+export async function buildWebsite({ understanding, tools, io, project = 'general', target = null }) {
   const { entities, raw } = understanding;
-  const topic = entities.topic || keywords(raw, 2).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'My Project';
-  const pal = palette(topic);
-  const tone = entities.tone;
-  const rel = `${project}/site/index.html`;
+  let topic = entities.topic || keywords(raw, 2).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'My Project';
+  const rel = target || `${project}/site/index.html`;
 
   // Improvement pass? Read the current version and step the ladder.
   let version = 1;
   if (await tools.exists(rel)) {
     const current = await tools.read(rel);
+    // Keep the site's identity: on refinement the existing title IS the topic.
+    const existingTitle = current.match(/<title>([^<]+)<\/title>/i)?.[1]?.trim();
+    if (existingTitle) topic = existingTitle;
     version = (Number(current.match(/atlas-pass:(\d+)/)?.[1]) || 1) + 1;
     const archived = `${project}/site/history/v${version - 1}.html`;
     io.think(`The site already exists (pass ${version - 1}). This is an improvement pass — ${PASS_NOTES[version] || 'polishing copy and structure'}.`);
     io.act(`Archiving the previous version to ${archived}`);
     await tools.write(archived, current);
-  } else {
-    io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
   }
+
+  const pal = palette(topic);
+  const tone = entities.tone;
+  if (version === 1) io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
 
   for (const msg of io.inbox()) io.think(`Noted your message: “${msg}” — factoring it in.`);
 
@@ -324,10 +327,10 @@ export async function research({ understanding, tools, io, project = 'general' }
 // ============================================================================
 // write_doc — structured document; later passes deepen it instead of redoing it.
 // ============================================================================
-export async function writeDoc({ understanding, tools, io, project = 'general' }) {
+export async function writeDoc({ understanding, tools, io, project = 'general', target = null }) {
   const { raw, entities } = understanding;
   const topic = entities.topic || raw.replace(/^(write|draft|compose|create)\s*(me\s*)?(a|an)?\s*/i, '').slice(0, 60) || 'Untitled';
-  const rel = `${project}/documents/${slugify(topic)}-${today()}.md`;
+  const rel = target || `${project}/documents/${slugify(topic)}-${today()}.md`;
 
   // Improvement pass: deepen an existing draft.
   if (await tools.exists(rel)) {
@@ -462,11 +465,13 @@ function chapterProse(topic, beat, cast, r) {
   return [p1, p2, p3, p4].join('\n\n');
 }
 
-export async function writeStory({ understanding, tools, io, project = 'general' }) {
+export async function writeStory({ understanding, tools, io, project = 'general', target = null }) {
   const { entities, raw } = understanding;
   const topic = entities.topic || keywords(raw, 2).join(' ') || 'the lost signal';
-  const outlineRel = `${project}/story/outline.md`;
-  const storyRel = `${project}/story/story.md`;
+  // A targeted refine points inside some project's story/ folder — stay there.
+  const storyDir = target ? target.replace(/\/[^/]+$/, '') : `${project}/story`;
+  const outlineRel = `${storyDir}/outline.md`;
+  const storyRel = `${storyDir}/story.md`;
   const r = rng('story:' + topic);
   const chapters = Math.max(8, Math.min(60, Math.round((entities.pages || 40) / 4)));
   const BATCH = 4;
@@ -533,14 +538,14 @@ export async function writeStory({ understanding, tools, io, project = 'general'
 
   // Revision pass: re-work one earlier chapter with fresh prose, keep a log.
   const revN = (story.match(/Revision pass \d+/g) || []).length + 1;
-  const target = ((revN - 1) % beats.length) + 1;
-  io.think(`Draft is complete — revision pass ${revN}: reworking chapter ${target} with fresh eyes.`);
-  const fresh = chapterProse(topic, beats[target - 1], cast, rng(`ch:${topic}:${target}:rev${revN}`));
+  const chapNo = ((revN - 1) % beats.length) + 1;
+  io.think(`Draft is complete — revision pass ${revN}: reworking chapter ${chapNo} with fresh eyes.`);
+  const fresh = chapterProse(topic, beats[chapNo - 1], cast, rng(`ch:${topic}:${chapNo}:rev${revN}`));
   const revised = story.replace(
-    new RegExp(`(## Chapter ${target} — [^\\n]+\\n\\n)[\\s\\S]*?(?=\\n## Chapter |\\n_Revision|$)`),
+    new RegExp(`(## Chapter ${chapNo} — [^\\n]+\\n\\n)[\\s\\S]*?(?=\\n## Chapter |\\n_Revision|$)`),
     `$1${fresh}\n`
-  ) + `\n_Revision pass ${revN} · chapter ${target} reworked · ${new Date().toLocaleString()}_\n`;
-  io.act(`Rewriting chapter ${target} in ${storyRel}`);
+  ) + `\n_Revision pass ${revN} · chapter ${chapNo} reworked · ${new Date().toLocaleString()}_\n`;
+  io.act(`Rewriting chapter ${chapNo} in ${storyRel}`);
   await tools.write(storyRel, revised);
   return {
     summary: `Revision pass ${revN} on “${topic}”: chapter ${target} reworked. The manuscript keeps tightening until the deadline → /files/${storyRel}`,

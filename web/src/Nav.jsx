@@ -4,11 +4,10 @@ import { Icon, Mark } from './icons.jsx';
 
 // Shared top bar for signed-in views: brand, tabs, connection LED, account.
 export default function Nav({ view, setView, user, connected, onSignOut }) {
+  // Files + Database live inside each project now — the nav stays lean.
   const tabs = [
     ['deck', 'Command Deck', 'bolt'],
     ['atlas', 'ATLAS', 'brain'],
-    ['files', 'Files', 'file'],
-    ['database', 'Database', 'server'],
     ['settings', 'Settings', 'gear'],
   ];
   return (

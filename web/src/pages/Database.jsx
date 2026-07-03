@@ -5,9 +5,10 @@ import { toast } from '../toast.jsx';
 
 // Atlas Database — a Firebase-style datastore per project. Create collections,
 // add/browse/delete records, and drive it from your own app over the API.
-export default function Database({ tasks, user }) {
+// With `fixedProject` set it embeds inside that project's workspace.
+export default function Database({ tasks = [], user, fixedProject = null }) {
   const [overview, setOverview] = useState([]);
-  const [project, setProject] = useState('');
+  const [project, setProject] = useState(fixedProject || '');
   const [collection, setCollection] = useState(null);
   const [records, setRecords] = useState([]);
   const [newCol, setNewCol] = useState('');
@@ -22,9 +23,9 @@ export default function Database({ tasks, user }) {
 
   const load = () => api.dbOverview().then((o) => {
     setOverview(o);
-    setProject((p) => p || o[0]?.project || (knownProjects[0] || ''));
+    if (!fixedProject) setProject((p) => p || o[0]?.project || (knownProjects[0] || ''));
   }).catch(() => {});
-  useEffect(load, []); // eslint-disable-line
+  useEffect(load, [fixedProject]); // eslint-disable-line
 
   const current = overview.find((p) => p.project === project);
 
@@ -70,12 +71,14 @@ export default function Database({ tasks, user }) {
       <section className="col">
         <div className="panel">
           <div className="panel-title"><Icon name="server" size={14} /> Atlas Database</div>
-          <p className="dim-note">A private datastore for your projects — store records, count things, and read/write it from your own app. Like Firebase, but yours.</p>
-          <label className="auth-label">Project
-            <input className="field" list="db-projects" placeholder="project name" value={project}
-              onChange={(e) => { setProject(e.target.value); setCollection(null); }} />
-            <datalist id="db-projects">{knownProjects.map((p) => <option key={p} value={p} />)}</datalist>
-          </label>
+          <p className="dim-note">A private datastore for {fixedProject ? 'this project' : 'your projects'} — store records, count things, and read/write it from your own app. Like Firebase, but yours.</p>
+          {!fixedProject && (
+            <label className="auth-label">Project
+              <input className="field" list="db-projects" placeholder="project name" value={project}
+                onChange={(e) => { setProject(e.target.value); setCollection(null); }} />
+              <datalist id="db-projects">{knownProjects.map((p) => <option key={p} value={p} />)}</datalist>
+            </label>
+          )}
         </div>
 
         <div className="panel">

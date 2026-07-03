@@ -2,24 +2,143 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { toast } from '../toast.jsx';
+import Files from './Files.jsx';
+import Database from './Database.jsx';
+
+// The Command Deck: projects are the organizing unit. Pick one in the sidebar
+// and its workspace opens — its own tasks, files, database, and chat.
 
 const STARTERS = [
   ['Website', 'Build me a one-page website for '],
   ['Research', 'Research on the web and write a cited report about '],
   ['Document', 'Draft a structured document about '],
   ['Story', 'Write a story about '],
-  ['Digest', 'Summarize everything in my workspace.'],
 ];
 
 const STATUS_RANK = { running: 0, 'awaiting-input': 1, queued: 2, failed: 3, done: 4, paused: 5, idle: 6 };
+const slugify = (s) => String(s || 'general').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'general';
 
 export default function Dashboard({ agent, user, tasks, reload }) {
   const name = agent?.name || 'ATLAS';
-  const [leftMode, setLeftMode] = useState('projects'); // 'projects' | 'new'
-  const [filter, setFilter] = useState(null); // active project filter (null = all)
-  const [title, setTitle] = useState('');
+  const [projects, setProjects] = useState([]);
+  const [slug, setSlug] = useState(null);      // selected project
+  const [naming, setNaming] = useState(false); // "new project" mini-form
+  const [newName, setNewName] = useState('');
+  const [tab, setTab] = useState('tasks');     // tasks | files | database | chat
+
+  const loadProjects = () => api.projects().then(setProjects).catch(() => {});
+  useEffect(loadProjects, []);
+  useEffect(() => { loadProjects(); }, [tasks.length]); // new/removed tasks → refresh stats
+
+  // Merge live task state into the sidebar so LEDs are current.
+  const cards = useMemo(() => {
+    const bySlug = new Map(projects.map((p) => [p.slug, { ...p }]));
+    for (const t of tasks) {
+      const s = slugify(t.project || 'general');
+      if (!bySlug.has(s)) bySlug.set(s, { slug: s, name: t.project || 'General', tasks: 0, running: 0, files: 0, collections: 0, updatedAt: 0 });
+      const c = bySlug.get(s);
+      c.updatedAt = Math.max(c.updatedAt || 0, t.updatedAt || 0);
+    }
+    for (const c of bySlug.values()) {
+      const mine = tasks.filter((t) => slugify(t.project || 'general') === c.slug);
+      c.tasks = mine.length;
+      c.running = mine.filter((t) => ['running', 'awaiting-input', 'queued'].includes(t.status)).length;
+    }
+    return [...bySlug.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [projects, tasks]);
+
+  const current = cards.find((c) => c.slug === slug) || null;
+  const projectTasks = useMemo(
+    () => tasks.filter((t) => slugify(t.project || 'general') === slug)
+      .sort((a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) || b.updatedAt - a.updatedAt),
+    [tasks, slug]
+  );
+
+  const createProject = () => {
+    const nm = newName.trim();
+    if (!nm) return;
+    setSlug(slugify(nm));
+    setProjects((prev) => prev.some((p) => p.slug === slugify(nm)) ? prev
+      : [{ slug: slugify(nm), name: nm, tasks: 0, running: 0, files: 0, collections: 0, updatedAt: Date.now() }, ...prev]);
+    setNewName(''); setNaming(false); setTab('tasks');
+  };
+
+  return (
+    <div className="pdeck">
+      {/* ------- project sidebar ------- */}
+      <aside className="panel proj-side">
+        <div className="panel-title"><Icon name="globe" size={14} /> Projects <span className="count-chip">{cards.length}</span></div>
+        <div className="proj-scroll">
+          {cards.length === 0 && !naming && (
+            <div className="empty">No projects yet.<br />Create one and give {name} its first task.</div>
+          )}
+          {cards.map((p) => (
+            <button key={p.slug} className={`proj-row ${slug === p.slug ? 'active' : ''}`}
+              onClick={() => { setSlug(p.slug); setTab('tasks'); }}>
+              <span className="proj-glyph">{(p.name || p.slug)[0].toUpperCase()}</span>
+              <span className="proj-main">
+                <span className="proj-name">{p.name || p.slug}</span>
+                <span className="proj-sub">{p.tasks} task{p.tasks !== 1 ? 's' : ''} · {p.files} file{p.files !== 1 ? 's' : ''}{p.collections ? ` · ${p.collections} db` : ''}</span>
+              </span>
+              {p.running > 0 && <span className="led cyan pulse" />}
+            </button>
+          ))}
+        </div>
+        {naming ? (
+          <div className="newproj-form">
+            <input className="field" autoFocus placeholder="Project name" value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') createProject(); if (e.key === 'Escape') setNaming(false); }} />
+            <button className="gel-btn gel-primary" onClick={createProject}>Create</button>
+          </div>
+        ) : (
+          <button className="gel-btn gel-primary new-task-btn" onClick={() => setNaming(true)}>
+            <Icon name="spark" size={15} /> New project
+          </button>
+        )}
+      </aside>
+
+      {/* ------- workspace ------- */}
+      {!current ? (
+        <div className="proj-empty">
+          <Icon name="globe" size={42} />
+          <h2>Pick a project</h2>
+          <p>Each project has its own tasks, files, database, and a direct line to {name}.</p>
+        </div>
+      ) : (
+        <section className="proj-work">
+          <header className="panel proj-head">
+            <div className="proj-head-id">
+              <span className="proj-glyph big">{(current.name || current.slug)[0].toUpperCase()}</span>
+              <div>
+                <div className="proj-title">{current.name || current.slug}</div>
+                <div className="proj-stats">{current.tasks} tasks · {current.files} files{current.collections ? ` · ${current.collections} collections` : ''}</div>
+              </div>
+            </div>
+            <nav className="wtabs">
+              {[['tasks', 'Tasks', 'bolt'], ['files', 'Files', 'file'], ['database', 'Database', 'server'], ['chat', 'Chat', 'chat']].map(([id, label, icon]) => (
+                <button key={id} className={`wtab ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
+                  <Icon name={icon} size={14} /> {label}
+                </button>
+              ))}
+            </nav>
+          </header>
+
+          {tab === 'tasks' && <TasksTab name={name} agent={agent} slug={current.slug} projectName={current.name} tasks={projectTasks} reload={reload} />}
+          {tab === 'files' && <Files project={current.slug} />}
+          {tab === 'database' && <Database fixedProject={current.slug} tasks={tasks} user={user} />}
+          {tab === 'chat' && <ChatTab name={name} slug={current.slug} onTaskMade={reload} />}
+        </section>
+      )}
+    </div>
+  );
+}
+
+/* ============================ TASKS TAB ==================================== */
+function TasksTab({ name, agent, slug, projectName, tasks, reload }) {
+  const [composing, setComposing] = useState(tasks.length === 0);
   const [prompt, setPrompt] = useState('');
-  const [project, setProject] = useState('');
+  const [title, setTitle] = useState('');
   const [schedule, setSchedule] = useState({ schedule: { type: 'manual' } });
   const [notify, setNotify] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
@@ -27,81 +146,43 @@ export default function Dashboard({ agent, user, tasks, reload }) {
 
   const selected = useMemo(() => {
     if (selectedId) return tasks.find((t) => t.id === selectedId) || null;
-    return tasks.find((t) => t.status === 'running') || [...tasks].sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
+    return tasks.find((t) => t.status === 'running') || tasks[0] || null;
   }, [tasks, selectedId]);
-
-  const projects = useMemo(() => [...new Set(tasks.map((t) => t.project).filter(Boolean))].sort(), [tasks]);
-
-  // One tidy summary per project for the sidebar.
-  const projectCards = useMemo(() => {
-    const map = new Map();
-    for (const t of tasks) {
-      const key = t.project || '__none';
-      const c = map.get(key) || { key, name: t.project || 'Unfiled', count: 0, running: 0, done: 0, updatedAt: 0 };
-      c.count++;
-      if (t.status === 'running' || t.status === 'awaiting-input') c.running++;
-      if (t.status === 'done') c.done++;
-      c.updatedAt = Math.max(c.updatedAt, t.updatedAt || 0);
-      map.set(key, c);
-    }
-    return [...map.values()].sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [tasks]);
-
-  const visible = useMemo(() => {
-    const list = filter ? tasks.filter((t) => (t.project || '__none') === filter) : tasks;
-    return [...list].sort((a, b) =>
-      (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) || b.updatedAt - a.updatedAt);
-  }, [tasks, filter]);
 
   async function assign(runNow) {
     if (!prompt.trim() || busy) return;
     setBusy(true);
     try {
-      const task = await api.create({ title, prompt, project: project || (filter && filter !== '__none' ? projectCards.find((p) => p.key === filter)?.name : ''), schedule: schedule.schedule, notify, runNow });
-      setTitle(''); setPrompt('');
+      const task = await api.create({ title, prompt, project: projectName || slug, schedule: schedule.schedule, notify, runNow });
+      setPrompt(''); setTitle(''); setComposing(false);
       setSelectedId(task.id);
-      setLeftMode('projects');
       toast(runNow ? `${name} is on it.` : 'Task queued.', 'ok');
     } catch (e) { toast(e.message, 'err'); }
     finally { setBusy(false); }
   }
 
-  const filterName = filter === '__none' ? 'Unfiled' : filter;
-
   return (
-    <div className="deck-grid">
+    <div className="deck-grid work-grid">
       <section className="col col-left">
-        {/* toggle: project sidebar vs. new-task composer */}
-        <div className="left-switch">
-          <button className={`lswitch ${leftMode === 'projects' ? 'on' : ''}`} onClick={() => setLeftMode('projects')}>
-            <Icon name="file" size={14} /> Projects
-          </button>
-          <button className={`lswitch ${leftMode === 'new' ? 'on' : ''}`} onClick={() => { setLeftMode('new'); setProject(filterName && filter !== '__none' ? filterName : ''); }}>
-            <Icon name="spark" size={14} /> New task
-          </button>
-        </div>
-
-        {leftMode === 'new' ? (
+        {composing ? (
           <div className="panel composer">
+            <div className="panel-title"><Icon name="spark" size={14} /> New task in {projectName || slug}
+              {tasks.length > 0 && <button className="clear-filter" onClick={() => setComposing(false)}>close</button>}
+            </div>
             <div className="chip-row">
               {STARTERS.map(([label, starter]) => (
                 <button key={label} type="button" className="starter-chip" onClick={() => setPrompt(starter)}>{label}</button>
               ))}
             </div>
-            <textarea
-              className="field textarea"
-              placeholder={`Tell ${name} what to do… e.g. "Build me a one-page site for my band by tomorrow morning." ATLAS titles it for you.`}
-              value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} autoFocus
-            />
-            <input className="field" placeholder="Custom title (optional — ATLAS writes one otherwise)" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <input className="field project-field" list="project-list" placeholder="Project (groups tasks & files)"
-              value={project} onChange={(e) => setProject(e.target.value)} />
-            <datalist id="project-list">{projects.map((p) => <option key={p} value={p} />)}</datalist>
+            <textarea className="field textarea" rows={4} autoFocus
+              placeholder={`Tell ${name} what to do for this project…`}
+              value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            <input className="field" placeholder="Custom title (optional — ATLAS writes one)" value={title} onChange={(e) => setTitle(e.target.value)} />
             <SchedulePicker onChange={setSchedule} />
             <label className="notify-row">
               <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
               <Icon name={notify ? 'bell' : 'bellOff'} size={15} />
-              <span>Notify me when it's done {agent && !agent.channels && !agent.sms && <em>(SMS Not Available)</em>}</span>
+              <span>Notify me when it's done {agent?.channels && !agent.channels.sms && <em>(SMS Not Available)</em>}</span>
             </label>
             <div className="composer-actions">
               <button className="gel-btn" disabled={busy || !prompt.trim()} onClick={() => assign(false)}>Queue it</button>
@@ -109,41 +190,17 @@ export default function Dashboard({ agent, user, tasks, reload }) {
             </div>
           </div>
         ) : (
-          <div className="panel projects-panel">
-            <div className="panel-title"><Icon name="file" size={14} /> Projects <span className="count-chip">{projectCards.length}</span></div>
-            <div className="proj-scroll">
-              <button className={`proj-row all ${!filter ? 'active' : ''}`} onClick={() => setFilter(null)}>
-                <span className="proj-name">All tasks</span>
-                <span className="proj-count">{tasks.length}</span>
-              </button>
-              {projectCards.length === 0 && <div className="empty">No projects yet. Start a task and give it a project name.</div>}
-              {projectCards.map((p) => (
-                <button key={p.key} className={`proj-row ${filter === p.key ? 'active' : ''}`} onClick={() => setFilter(p.key)}>
-                  <span className="proj-glyph">{p.name[0].toUpperCase()}</span>
-                  <span className="proj-main">
-                    <span className="proj-name">{p.name}</span>
-                    <span className="proj-sub">{p.count} task{p.count !== 1 ? 's' : ''}{p.done ? ` · ${p.done} done` : ''}</span>
-                  </span>
-                  {p.running > 0 && <span className="led cyan pulse" />}
-                </button>
-              ))}
-            </div>
-            <button className="gel-btn gel-primary new-task-btn" onClick={() => { setLeftMode('new'); setProject(filterName && filter !== '__none' ? filterName : ''); }}>
-              <Icon name="spark" size={15} /> New task
-            </button>
-          </div>
+          <button className="gel-btn gel-primary new-task-btn" onClick={() => setComposing(true)}>
+            <Icon name="spark" size={15} /> New task
+          </button>
         )}
 
         <div className="panel tasklist">
-          <div className="panel-title">
-            <Icon name="bolt" size={14} /> {filter ? filterName : 'All tasks'} <span className="count-chip">{visible.length}</span>
-            {filter && <button className="clear-filter" onClick={() => setFilter(null)}>clear</button>}
-          </div>
+          <div className="panel-title"><Icon name="bolt" size={14} /> Tasks <span className="count-chip">{tasks.length}</span></div>
           <div className="task-scroll">
-            {visible.length === 0 && <div className="empty">No tasks here yet. Give {name} something to do.</div>}
-            {visible.map((t) => (
-              <TaskRow key={t.id} task={t} active={selected?.id === t.id} showProject={!filter}
-                onSelect={() => setSelectedId(t.id)} reload={reload} />
+            {tasks.length === 0 && <div className="empty">No tasks in this project yet.</div>}
+            {tasks.map((t) => (
+              <TaskRow key={t.id} task={t} active={selected?.id === t.id} onSelect={() => setSelectedId(t.id)} reload={reload} />
             ))}
           </div>
         </div>
@@ -152,6 +209,88 @@ export default function Dashboard({ agent, user, tasks, reload }) {
       <section className="col col-right">
         <Feed task={selected} name={name} />
       </section>
+    </div>
+  );
+}
+
+/* ========================= PROJECT CHAT TAB ================================= */
+function ChatTab({ name, slug, onTaskMade }) {
+  const [msgs, setMsgs] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [attached, setAttached] = useState(null); // file path pinned to next message
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    api.projectChat(slug).then(setMsgs).catch(() => {});
+    api.files().then((all) => setFiles(all.filter((f) => f.path.startsWith(slug + '/')))).catch(() => {});
+  }, [slug]);
+  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length]);
+
+  async function send() {
+    const message = text.trim();
+    if (!message || busy) return;
+    setBusy(true);
+    setText('');
+    const file = attached;
+    setAttached(null);
+    setMsgs((prev) => [...prev, { id: 'tmp' + Date.now(), who: 'user', text: message, meta: file ? { file } : null, ts: Date.now() }]);
+    try {
+      const { reply, taskId } = await api.projectSend(slug, message, file || undefined);
+      setMsgs((prev) => [...prev, reply]);
+      if (taskId) { toast('Refinement task started.', 'ok'); onTaskMade?.(); }
+    } catch (e) { toast(e.message, 'err'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="chat-grid">
+      {/* project files — click one to pin your feedback to it */}
+      <aside className="panel chat-files">
+        <div className="panel-title"><Icon name="file" size={14} /> Files</div>
+        <p className="dim-note tiny-note">Click a file, then say what to change — {name} refines that exact file.</p>
+        <div className="task-scroll">
+          {files.length === 0 && <div className="empty">No files yet.</div>}
+          {files.map((f) => (
+            <button key={f.path} className={`chatfile ${attached === f.path ? 'active' : ''}`}
+              onClick={() => setAttached(attached === f.path ? null : f.path)}>
+              <Icon name="file" size={13} />
+              <span className="chatfile-name">{f.path.slice(slug.length + 1)}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <div className="panel feed chat-main">
+        <div className="feed-head"><div className="panel-title"><Icon name="chat" size={14} /> Project chat</div></div>
+        <div className="feed-scroll" ref={ref}>
+          {msgs.length === 0 && (
+            <div className="empty">Ask {name} anything about this project — progress, plans, contents.<br />
+              Or click a file on the left and tell it what to change.</div>
+          )}
+          {msgs.map((m) => (
+            <div key={m.id} className={`bubble-row ${m.who === 'user' ? 'mine' : 'agent'}`}>
+              <div className="bubble">
+                <div className="bubble-who">{m.who === 'user' ? 'You' : name}</div>
+                {m.meta?.file && <div className="bubble-file"><Icon name="file" size={11} /> {m.meta.file.split('/').pop()}</div>}
+                <div className="bubble-text">{m.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {attached && (
+          <div className="attach-chip">
+            <Icon name="file" size={13} /> Feedback on <b>{attached.split('/').pop()}</b>
+            <button className="mini-btn ghost" onClick={() => setAttached(null)}><Icon name="close" size={12} /></button>
+          </div>
+        )}
+        <div className="chat-bar">
+          <input className="field" placeholder={attached ? `What should change in ${attached.split('/').pop()}?` : `Message ${name} about this project…`}
+            value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
+          <button className="gel-btn gel-primary send" disabled={busy || !text.trim()} onClick={send}><Icon name="send" size={16} /></button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -269,7 +408,7 @@ function summarize(s) {
 }
 
 /* ---------- task row ---------- */
-function TaskRow({ task, active, onSelect, reload, showProject }) {
+function TaskRow({ task, active, onSelect, reload }) {
   const [armed, setArmed] = useState(false);
   const running = task.status === 'running';
   const stop = (e) => { e.stopPropagation(); api.stop(task.id).catch(() => {}); };
@@ -284,7 +423,7 @@ function TaskRow({ task, active, onSelect, reload, showProject }) {
         <div className="task-title">{task.title}</div>
         <div className="task-meta">
           <span className={`status-tag ${task.status}`}>{statusLabel(task.status)}</span>
-          {showProject && task.project && <span className="proj-chip">{task.project}</span>}
+          {task.target && <span className="proj-chip"><Icon name="refresh" size={10} /> {task.target.split('/').pop()}</span>}
           <span className="sched-badge">{rowSchedule(task.schedule)}</span>
           {task.schedule?.deadline && <span className="dl-badge"><Icon name="clock" size={11} /> {fmt(task.schedule.deadline)}</span>}
           {task.runCount > 0 && <span className="runs">×{task.runCount}</span>}
@@ -312,7 +451,7 @@ function TaskRow({ task, active, onSelect, reload, showProject }) {
   );
 }
 
-/* ---------- live feed + chat ---------- */
+/* ---------- live feed + task chat ---------- */
 function Feed({ task, name }) {
   const ref = useRef(null);
   const [msg, setMsg] = useState('');
@@ -320,13 +459,16 @@ function Feed({ task, name }) {
 
   useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [events.length, task?.id]);
 
-  const send = () => {
-    const text = msg.trim();
+  const send = (textOverride) => {
+    const text = (textOverride ?? msg).trim();
     if (!text || !task) return;
     setMsg('');
     api.chat(task.id, text).catch((e) => toast(e.message, 'err'));
   };
   const awaiting = task?.status === 'awaiting-input';
+  const lastOptionEvent = awaiting
+    ? [...events].reverse().find((e) => e.type === 'chat-agent' && e.meta?.options?.length)
+    : null;
 
   return (
     <div className="panel feed">
@@ -342,6 +484,13 @@ function Feed({ task, name }) {
             ? <ChatBubble key={ev.id} ev={ev} name={name} />
             : <FeedLine key={ev.id} ev={ev} />
         ))}
+        {lastOptionEvent && (
+          <div className="option-row">
+            {lastOptionEvent.meta.options.map((opt) => (
+              <button key={opt} className="option-btn" onClick={() => send(opt)}>{opt}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       {task?.lastResult && task.status === 'done' && (
@@ -351,15 +500,15 @@ function Feed({ task, name }) {
         </div>
       )}
 
-      {awaiting && <div className="awaiting-hint"><Icon name="chat" size={13} /> {name} has a question — answer below to begin.</div>}
+      {awaiting && <div className="awaiting-hint"><Icon name="chat" size={13} /> {name} has a question — tap an answer or type below.</div>}
       <div className="chat-bar">
         <input
-          className="field" placeholder={awaiting ? 'Answer ATLAS…' : task ? `Message ${name} about this task…` : 'Select a task to chat'}
+          className="field" placeholder={awaiting ? 'Or type your own answer…' : task ? `Message ${name} about this task…` : 'Select a task to chat'}
           value={msg} disabled={!task}
           onChange={(e) => setMsg(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
         />
-        <button className="gel-btn gel-primary send" disabled={!task || !msg.trim()} onClick={send}><Icon name="send" size={16} /></button>
+        <button className="gel-btn gel-primary send" disabled={!task || !msg.trim()} onClick={() => send()}><Icon name="send" size={16} /></button>
       </div>
     </div>
   );
@@ -371,7 +520,7 @@ function Linkified({ text }) {
   const parts = String(text).split(/(\/files\/[^\s,)"']+)/g);
   return parts.map((p, i) => {
     if (!p.startsWith('/files/')) return <span key={i}>{p}</span>;
-    const trailing = p.match(/[.·]+$/)?.[0] || '';       // "…index.html." → keep .html, drop the period
+    const trailing = p.match(/[.·]+$/)?.[0] || '';
     const href = trailing ? p.slice(0, -trailing.length) : p;
     return (
       <React.Fragment key={i}>

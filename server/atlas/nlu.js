@@ -33,6 +33,8 @@ const CORPUS = {
     'build a one page website overnight', 'i need a webpage for my shop',
     'make me a portfolio site', 'design a homepage for my business',
     'create a web page with a signup form', 'build a site with tour dates',
+    'improve the website', 'refine the site with this feedback',
+    'update the landing page', 'change the homepage hero', 'make the website more professional',
   ],
   research: [
     'research the best suppliers', 'find information about solar panels',
@@ -149,8 +151,19 @@ export function extractEntities(text) {
   return ent;
 }
 
+// Deterministic guards: unmistakable keywords beat the classifier, so a
+// website brief can never fall through to the document writer again.
+const FORCE_INTENT = [
+  [/\b(web\s?site|webpage|web page|landing page|homepage|one[- ]?page site|site for)\b/i, 'build_website'],
+  [/\b(story|novel|fiction|chapters?|screenplay)\b/i, 'write_story'],
+  [/\b(research|cited report|sources|look up|find out about)\b/i, 'research'],
+];
+
 export function understand(text) {
-  const { intent, confidence } = classify(text);
+  let { intent, confidence } = classify(text);
+  for (const [re, forced] of FORCE_INTENT) {
+    if (re.test(String(text || ''))) { intent = forced; confidence = Math.max(confidence, 0.9); break; }
+  }
   return { intent, confidence, entities: extractEntities(text), raw: String(text || '') };
 }
 
@@ -189,6 +202,8 @@ export function titleFor(u) {
 // good assistant would — and asks ONE sharp question instead of guessing.
 const BRANDS = /\b(iphone|ipad|macbook|apple|tesla|nike|adidas|google|android|samsung|galaxy|playstation|xbox|nintendo|netflix|spotify|amazon|starbucks|disney)\b/i;
 
+// Returns { question, options } — options render as one-tap answer buttons
+// (plus the free-text bar) in the task feed, Claude-style.
 export function needsClarification(u) {
   const src = u.raw || '';
   const brand = src.match(BRANDS);
@@ -196,15 +211,24 @@ export function needsClarification(u) {
   // "make a website for the new iPhone release" — theirs, or the brand's?
   if (brand && /\b(release|launch|announcement|drop|event|review)\b/i.test(src)) {
     const b = brand[0][0].toUpperCase() + brand[0].slice(1);
-    return `Quick check before I start: when you say “${brand[0]}”, do you mean the actual ${b} release — so I should research the real thing — or is this your own project that happens to share the name? One line back and I'm moving.`;
+    return {
+      question: `Quick check before I start: when you say “${brand[0]}”, do you mean the actual ${b} release — or your own project that shares the name?`,
+      options: [`The real ${b} — research the actual thing`, `My own project called “${b}”`],
+    };
   }
   // A website with no discernible subject.
   if (u.intent === 'build_website' && !u.entities.topic) {
-    return `Happy to build this — I just need the subject. What's the site for (a business, a band, a product, you), and is there a name I should put on it?`;
+    return {
+      question: `Happy to build this — I just need the subject. What's the site for, and is there a name I should put on it?`,
+      options: ['A business', 'A band or artist', 'A product', 'A personal site'],
+    };
   }
   // A story with no subject at all.
   if (u.intent === 'write_story' && !u.entities.topic && u.raw.split(/\s+/).length < 6) {
-    return `I'll write it — give me the seed first: what's the story about, and any genre or mood you want (mystery, sci-fi, cozy, dark)?`;
+    return {
+      question: `I'll write it — give me the seed first: what's it about, and what mood?`,
+      options: ['Mystery', 'Sci-fi', 'Cozy & warm', 'Dark & moody'],
+    };
   }
   return null;
 }

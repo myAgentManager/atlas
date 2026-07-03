@@ -26,11 +26,11 @@ export async function runTask(id) {
   // Ask before assuming: on the very first run, an ambiguous brief gets ONE
   // clarifying question instead of a guess. Reply in the task chat (or hit
   // Run again to proceed as-is).
-  if (task.runCount === 0 && !task.clarify) {
-    const question = needsClarification(understand(task.prompt));
-    if (question) {
-      addEvent(id, { type: 'chat-agent', text: question });
-      updateTask(id, { status: 'awaiting-input', clarify: { question, askedAt: Date.now(), answer: null } });
+  if (task.runCount === 0 && !task.clarify && !task.target) {
+    const q = needsClarification(understand(task.prompt));
+    if (q) {
+      addEvent(id, { type: 'chat-agent', text: q.question, meta: { options: q.options || [] } });
+      updateTask(id, { status: 'awaiting-input', clarify: { question: q.question, options: q.options || [], askedAt: Date.now(), answer: null } });
       return;
     }
   }

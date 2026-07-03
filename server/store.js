@@ -17,7 +17,7 @@ export const listTasks = (userId) =>
   userId ? state.tasks.filter((t) => t.userId === userId) : state.tasks;
 export const getTask = (id) => state.tasks.find((t) => t.id === id) || null;
 
-export function createTask({ userId, title, prompt, project, schedule, notify }) {
+export function createTask({ userId, title, prompt, project, schedule, notify, target }) {
   const now = Date.now();
   const task = {
     id: randomUUID(),
@@ -25,6 +25,7 @@ export function createTask({ userId, title, prompt, project, schedule, notify })
     title: title?.trim() || prompt.trim().slice(0, 52) || 'Untitled task',
     prompt: prompt.trim(),
     project: String(project || '').trim().slice(0, 40) || null,
+    target: String(target || '').trim() || null, // exact file this task refines
     status: 'idle', // idle | queued | running | done | failed | paused
     schedule: normalizeSchedule(schedule),
     notify: notify !== false,
@@ -93,6 +94,19 @@ export function drainInbox(id) {
 // --- ATLAS chat threads (per account, separate from task feeds) ---------------
 export function chatHistory(userId) {
   return chats[userId] || [];
+}
+
+// Per-project chat threads (keyed separately from the global ATLAS thread).
+export function projectChatHistory(userId, slug) {
+  return chats[`${userId}|proj|${slug}`] || [];
+}
+export function addProjectChat(userId, slug, who, text, meta = null) {
+  const key = `${userId}|proj|${slug}`;
+  const msg = { id: randomUUID(), who, text, meta, ts: Date.now() };
+  (chats[key] ||= []).push(msg);
+  if (chats[key].length > 200) chats[key].splice(0, chats[key].length - 200);
+  writeChats();
+  return msg;
 }
 export function addChat(userId, who, text) {
   const msg = { id: randomUUID(), who, text, ts: Date.now() };

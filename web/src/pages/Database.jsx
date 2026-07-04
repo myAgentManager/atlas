@@ -21,11 +21,14 @@ export default function Database({ tasks = [], user, fixedProject = null }) {
     return [...new Set([...fromDb, ...fromTasks])];
   }, [tasks, overview]);
 
-  const load = () => api.dbOverview().then((o) => {
-    setOverview(o);
-    if (!fixedProject) setProject((p) => p || o[0]?.project || (knownProjects[0] || ''));
-  }).catch(() => {});
-  useEffect(load, [fixedProject]); // eslint-disable-line
+  // Wrapped so useEffect never receives a Promise as its cleanup value.
+  const load = () => {
+    api.dbOverview().then((o) => {
+      setOverview(o);
+      if (!fixedProject) setProject((p) => p || o[0]?.project || (knownProjects[0] || ''));
+    }).catch(() => {});
+  };
+  useEffect(() => { load(); }, [fixedProject]); // eslint-disable-line
 
   const current = overview.find((p) => p.project === project);
 

@@ -9,7 +9,7 @@ export default function Settings({ user, setUser, agent, onDeleted }) {
     <div className="settings">
       <Profile user={user} setUser={setUser} />
       <Personalization user={user} setUser={setUser} agent={agent} />
-      <Security user={user} setUser={setUser} />
+      <Security user={user} setUser={setUser} agent={agent} />
       <Notifications user={user} setUser={setUser} agent={agent} />
       <Integrations user={user} setUser={setUser} />
       <DevApi user={user} setUser={setUser} />
@@ -80,31 +80,56 @@ function Personalization({ user, setUser, agent }) {
   );
 }
 
-/* ---------- security: password + 2SV ---------- */
-function Security({ user, setUser }) {
+/* ---------- security: password + 2SV method chooser ---------- */
+function Security({ user, setUser, agent }) {
+  const chan = agent?.channels?.twoStep || { totp: true, email: false, sms: false };
+  const active = user.twoStepMethod || null;
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [flash, show] = useFlash();
-  const [setup, setSetup] = useState(null);   // { secret, otpauth }
+  const [setup, setSetup] = useState(null);       // TOTP: { secret, otpauth }
+  const [enrolling, setEnrolling] = useState(null); // 'email' | 'sms' → code entry
+  const [hint, setHint] = useState('');
   const [code, setCode] = useState('');
-  const [backup, setBackup] = useState(null); // shown once after enabling
+  const [backup, setBackup] = useState(null);     // shown once after TOTP enable
 
   const changePw = () =>
     api.changePassword(current, next)
       .then(() => { setCurrent(''); setNext(''); show('Password changed.'); })
       .catch((e) => show(e.message));
 
-  const begin = () => api.setup2sv().then(setSetup).catch((e) => show(e.message));
-  const enable = () =>
+  const pick = (method) => {
+    setSetup(null); setEnrolling(null); setCode('');
+    if (method === 'totp') {
+      api.setup2sv().then(setSetup).catch((e) => show(e.message));
+    } else {
+      api.start2svMethod(method)
+        .then(({ hint }) => { setEnrolling(method); setHint(hint); })
+        .catch((e) => show(e.message));
+    }
+  };
+  const enableTotp = () =>
     api.enable2sv(code)
       .then(({ backup }) => { setBackup(backup); setSetup(null); setCode(''); return api.me(); })
       .then(({ user }) => setUser(user))
       .catch((e) => show(e.message));
-  const disable = () => {
-    const c = prompt('Enter a current 2SV code (or backup code) to turn it off:');
-    if (!c) return;
-    api.disable2sv(c).then(() => api.me()).then(({ user }) => { setUser(user); show('2SV disabled.'); }).catch((e) => show(e.message));
+  const confirmMethod = () =>
+    api.confirm2svMethod(code)
+      .then(({ user }) => { setUser(user); setEnrolling(null); setCode(''); show('Sign-in codes are on.'); })
+      .catch((e) => show(e.message));
+  const turnOff = () => {
+    const pw = prompt('Enter your password to turn two-step verification off:');
+    if (pw === null) return;
+    api.disable2sv({ password: pw })
+      .then(({ user }) => { setUser(user); show('2SV turned off.'); })
+      .catch((e) => show(e.message));
   };
+
+  const METHODS = [
+    ['totp', 'Authenticator app', 'Codes from any TOTP app. Works offline, with backup codes.', true],
+    ['email', 'Email code', 'We email a 6-digit code each time you sign in.', chan.email],
+    ['sms', 'Text message', 'We text a code to your number from Notifications.', chan.sms],
+  ];
 
   return (
     <Section icon="lock" title="Security">
@@ -119,11 +144,30 @@ function Security({ user, setUser }) {
           <Icon name="shield" size={16} />
           <div>
             <b>Two-step verification</b>
-            <div className="twosv-sub">{user.twoStep ? `On — ${user.backupCodesLeft} backup codes left.` : 'Add a second lock on your account with any authenticator app.'}</div>
+            <div className="twosv-sub">
+              {active
+                ? <>On via <b>{{ totp: 'authenticator app', email: 'email codes', sms: 'text messages' }[active]}</b>{active === 'totp' ? ` — ${user.backupCodesLeft} backup codes left` : ''}.</>
+                : 'Pick a second lock for your account.'}
+            </div>
           </div>
-          {user.twoStep
-            ? <button className="gel-btn" onClick={disable}>Turn off</button>
-            : <button className="gel-btn gel-primary" onClick={begin}>Set up</button>}
+          {active && <button className="gel-btn" onClick={turnOff}>Turn off</button>}
+        </div>
+
+        <div className="method-grid">
+          {METHODS.map(([id, title, desc, available]) => (
+            <button key={id} type="button"
+              className={`method-card ${active === id ? 'on' : ''} ${!available ? 'na' : ''}`}
+              disabled={!available || active === id}
+              onClick={() => pick(id)}>
+              <span className="method-title">
+                <Icon name={{ totp: 'key', email: 'send', sms: 'chat' }[id]} size={15} /> {title}
+              </span>
+              <span className="method-desc">{desc}</span>
+              <span className={`method-badge ${active === id ? 'live' : !available ? 'off' : ''}`}>
+                {active === id ? 'Active' : available ? 'Set up' : 'Not Available'}
+              </span>
+            </button>
+          ))}
         </div>
 
         {setup && (
@@ -134,7 +178,17 @@ function Security({ user, setUser }) {
             <p>2 · Enter the 6-digit code it shows:</p>
             <div className="twosv-verify">
               <input className="field code-field" inputMode="numeric" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} />
-              <button className="gel-btn gel-primary" onClick={enable} disabled={code.length < 6}>Verify &amp; enable</button>
+              <button className="gel-btn gel-primary" onClick={enableTotp} disabled={code.length < 6}>Verify &amp; enable</button>
+            </div>
+          </div>
+        )}
+
+        {enrolling && (
+          <div className="twosv-setup">
+            <p>We sent a 6-digit code to <b>{hint}</b> — enter it to switch on {enrolling === 'email' ? 'email' : 'text'} sign-in codes:</p>
+            <div className="twosv-verify">
+              <input className="field code-field" inputMode="numeric" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} />
+              <button className="gel-btn gel-primary" onClick={confirmMethod} disabled={code.length < 6}>Verify &amp; enable</button>
             </div>
           </div>
         )}

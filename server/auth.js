@@ -113,6 +113,7 @@ export function createUser({ email, name, password, provider, providerId }) {
     disabled: false,
     welcomed: false,
     totp: { secret: null, enabled: false, backup: [] },
+    second: { method: null }, // 'totp' | 'email' | 'sms' | null
     apiKey: newApiKey(),
     settings: {
       smsTo: '',
@@ -170,16 +171,43 @@ export function beginTotpSetup(user) {
 export function enableTotp(user, code) {
   if (!user.totp.secret || !totpVerify(user.totp.secret, code)) return null;
   user.totp.enabled = true;
+  user.second = { method: 'totp' };
   const plain = Array.from({ length: 6 }, () => crypto.randomBytes(4).toString('hex'));
   user.totp.backup = plain.map(sha);
   saveUsers();
-  audit('auth', `2SV enabled: ${user.email}`);
+  audit('auth', `2SV enabled (authenticator): ${user.email}`);
   return plain; // shown once
 }
-export function disableTotp(user) {
+export function disableSecond(user) {
   user.totp = { secret: null, enabled: false, backup: [] };
+  user.second = { method: null };
   saveUsers();
   audit('auth', `2SV disabled: ${user.email}`);
+}
+export function setSecondMethod(user, method) {
+  user.second = { method };
+  saveUsers();
+  audit('auth', `2SV enabled (${method}): ${user.email}`);
+}
+// Active method — tolerant of accounts created before `second` existed.
+export function secondMethod(user) {
+  return user.second?.method || (user.totp?.enabled ? 'totp' : null);
+}
+
+// 6-digit verification code + masked destination for UI hints.
+export const genCode = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+export function maskDest(dest) {
+  const s = String(dest || '');
+  if (s.includes('@')) {
+    const [u, d] = s.split('@');
+    return `${u.slice(0, 2)}•••@${d}`;
+  }
+  return s.length > 4 ? `•••${s.slice(-4)}` : s;
+}
+export function codeMatches(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a || '').trim()).digest();
+  const hb = crypto.createHash('sha256').update(String(b || '').trim()).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
 export function checkSecondFactor(user, code) {
   if (totpVerify(user.totp.secret, code)) return true;
@@ -210,16 +238,18 @@ export function sessionUser(token) {
   const user = getUser(s.userId);
   return user && !user.disabled ? user : null;
 }
-export function createPending(userId) {
+export function createPending(userId, extra = {}) {
   const token = crypto.randomBytes(24).toString('hex');
-  pending.set(token, { userId, exp: Date.now() + 5 * 60_000 });
+  pending.set(token, { userId, exp: Date.now() + 5 * 60_000, ...extra });
   return token;
 }
+// Returns { user, method, code } — or null if expired/unknown.
 export function takePending(token) {
   const p = pending.get(token);
   if (!p || p.exp < Date.now()) return null;
   pending.delete(token);
-  return getUser(p.userId);
+  const user = getUser(p.userId);
+  return user ? { user, method: p.method || 'totp', code: p.code || null } : null;
 }
 
 export const rotateApiKey = (user) => { user.apiKey = newApiKey(); saveUsers(); return user.apiKey; };
@@ -255,10 +285,11 @@ export function requireAuth(req, res, next) {
 
 // Public JSON shape of a user (never leaks hashes/secrets).
 export function publicUser(u) {
+  const method = secondMethod(u);
   return {
     id: u.id, email: u.email, name: u.name, role: u.role,
     provider: u.provider || 'local', welcomed: u.welcomed !== false,
-    twoStep: u.totp.enabled, backupCodesLeft: u.totp.backup.length,
+    twoStep: Boolean(method), twoStepMethod: method, backupCodesLeft: u.totp.backup.length,
     apiKey: u.apiKey, settings: u.settings, createdAt: u.createdAt,
   };
 }

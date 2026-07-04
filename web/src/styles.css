@@ -748,3 +748,134 @@ a.mini-btn { text-decoration: none; }
   .proj-side { max-height: 300px; }
   .chat-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================================
+   v8 — 2000s glossy pass (aqua gel, like the globe) + project overview
+   ========================================================================== */
+
+/* every panel gets a glass sheen across its top edge */
+.panel::after {
+  content: ''; position: absolute; left: 1px; right: 1px; top: 1px; height: 34%;
+  border-radius: calc(var(--r) - 2px) calc(var(--r) - 2px) 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.015) 70%, transparent);
+  pointer-events: none;
+}
+.feed-scroll, .db-rows, .file-text { position: relative; z-index: 1; }
+
+/* aqua-gel primary buttons: hotter top gloss + bottom glow */
+.gel-primary::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.12) 85%, transparent);
+}
+.gel-primary { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -3px 8px rgba(0, 55, 50, 0.6),
+  0 3px 16px rgba(52, 227, 208, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5); }
+
+/* glossy on-states for tabs and segments */
+.wtab.on, .lswitch.on, .seg.on, .day.on {
+  position: relative; overflow: hidden;
+  background: linear-gradient(180deg, #8bf3e6 0%, #4fe9d8 45%, #1ab8ab 52%, #23cabb 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -2px 5px rgba(0, 60, 55, 0.45),
+    0 2px 8px rgba(52, 227, 208, 0.35);
+}
+.tabs .tab.on {
+  background: linear-gradient(180deg, #8bf3e6 0%, #4fe9d8 45%, #1ab8ab 52%, #23cabb 100%);
+  color: #04161a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -2px 5px rgba(0, 60, 55, 0.45), 0 2px 8px rgba(52, 227, 208, 0.3);
+}
+.tabs .tab.on .icon { color: #04161a; }
+
+/* project glyphs become little glossy spheres */
+.proj-glyph, .proj-glyph.big {
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #b8fff6 0%, #4fe9d8 38%, #159a8e 75%, #063b36 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), inset 0 -3px 5px rgba(0, 40, 36, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  position: relative; overflow: hidden;
+}
+.proj-glyph::after {
+  content: ''; position: absolute; left: 15%; right: 15%; top: 6%; height: 40%;
+  border-radius: 50%; background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+}
+.proj-glyph { color: #04302c; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); }
+
+/* gel pills */
+.count-chip, .proj-count, .db-col-count {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.3));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+.starter-chip, .option-btn {
+  background: linear-gradient(180deg, #333b46 0%, #1d242c 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 4px rgba(0, 0, 0, 0.4), 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+.option-btn { background: linear-gradient(180deg, rgba(90, 240, 224, 0.2), rgba(52, 227, 208, 0.05)); }
+
+/* chat bubbles: gel gloss on yours */
+.bubble-row.mine .bubble {
+  background: linear-gradient(180deg, #7df0e3 0%, #34e3d0 48%, #1db4a7 55%, #22c4b6 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 5px rgba(0, 60, 55, 0.4), 0 3px 10px rgba(52, 227, 208, 0.28);
+}
+
+/* nav brand mark: sits on glass with a soft drop */
+.brand-btn svg, .auth-brand svg { filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55)); }
+
+/* sidebar search */
+.proj-search { margin-bottom: 11px; }
+
+/* ---------- project overview ---------- */
+.overview-grid { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+.ov-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.ov-tile { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 18px 10px; cursor: pointer;
+  color: var(--ink); border: 1px solid var(--line); transition: transform 0.1s ease; }
+.ov-tile:hover { transform: translateY(-2px); }
+.ov-num { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--cyan);
+  text-shadow: 0 0 16px rgba(52, 227, 208, 0.45); }
+.ov-num.green { color: var(--green); text-shadow: 0 0 16px rgba(79, 224, 122, 0.45); }
+.ov-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.6px; color: var(--ink-faint); }
+.ov-alert { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-radius: 11px; cursor: pointer;
+  font-size: 13.5px; font-weight: 650; color: var(--amber); text-align: left;
+  background: linear-gradient(180deg, rgba(245, 177, 74, 0.16), rgba(245, 177, 74, 0.06));
+  border: 1px solid rgba(245, 177, 74, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 10px rgba(245, 177, 74, 0.12); }
+.ov-cols { flex: 1; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 14px; min-height: 0; }
+.ov-panel { display: flex; flex-direction: column; min-height: 0; }
+.ov-feed { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; background: var(--well);
+  border-radius: 10px; padding: 11px; box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6); position: relative; z-index: 1; }
+.ov-line { display: flex; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+.feed-icon.mini { width: 20px; height: 20px; border-radius: 6px; }
+.feed-icon.mini.thought { color: var(--cyan); } .feed-icon.mini.tool { color: var(--amber); }
+.feed-icon.mini.result { color: var(--green); } .feed-icon.mini.review { color: var(--amber); }
+.feed-icon.mini.plan { color: var(--cyan); } .feed-icon.mini.error { color: var(--red); }
+.ov-line-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ov-line-text { font-size: 12.5px; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-line-sub { font-size: 10.5px; color: var(--ink-faint); font-family: var(--mono); }
+.ov-file { display: flex; align-items: center; gap: 9px; padding: 9px 8px; border-radius: 8px; text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+.ov-file:hover { background: rgba(255, 255, 255, 0.04); }
+.ov-file .icon { color: var(--ink-faint); }
+.ov-file-name { flex: 1; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-file-sub { font-size: 10.5px; color: var(--ink-faint); }
+.ov-actions { display: flex; gap: 10px; margin-top: 12px; }
+.ov-actions .gel-btn { flex: 1; }
+
+/* ---------- 2SV method chooser ---------- */
+.method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.method-card { display: flex; flex-direction: column; gap: 7px; text-align: left; padding: 15px; border-radius: 12px;
+  cursor: pointer; color: var(--ink); border: 1px solid var(--line);
+  background: linear-gradient(168deg, #222932, #151a20);
+  box-shadow: inset 0 1px 0 var(--metal-edge), 0 3px 8px rgba(0, 0, 0, 0.35); transition: transform 0.1s; }
+.method-card:hover:not(:disabled) { transform: translateY(-2px); }
+.method-card:disabled { cursor: default; }
+.method-card.na { opacity: 0.55; }
+.method-card.on { box-shadow: inset 0 1px 0 var(--metal-edge), 0 0 0 1px rgba(79, 224, 122, 0.5), 0 0 16px rgba(79, 224, 122, 0.15); }
+.method-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
+.method-title .icon { color: var(--cyan); }
+.method-desc { font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
+.method-badge { align-self: flex-start; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  padding: 3px 9px; border-radius: 20px; color: var(--cyan); background: rgba(52, 227, 208, 0.1); border: 1px solid rgba(52, 227, 208, 0.3); }
+.method-badge.live { color: var(--green); background: rgba(79, 224, 122, 0.12); border-color: rgba(79, 224, 122, 0.4); }
+.method-badge.off { color: var(--ink-faint); background: rgba(0, 0, 0, 0.3); border-color: rgba(255, 255, 255, 0.08); }
+
+@media (max-width: 900px) {
+  .ov-tiles { grid-template-columns: repeat(2, 1fr); }
+  .ov-cols { grid-template-columns: 1fr; }
+  .method-grid { grid-template-columns: 1fr; }
+}

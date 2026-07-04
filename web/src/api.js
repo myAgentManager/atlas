@@ -26,7 +26,9 @@ export const api = {
   changePassword: (current, next) => post('/api/me/password', { current, next }),
   setup2sv: () => post('/api/me/2sv/setup'),
   enable2sv: (code) => post('/api/me/2sv/enable', { code }),
-  disable2sv: (code) => post('/api/me/2sv/disable', { code }),
+  start2svMethod: (method) => post('/api/me/2sv/method/start', { method }),
+  confirm2svMethod: (code) => post('/api/me/2sv/method/confirm', { code }),
+  disable2sv: (body) => post('/api/me/2sv/disable', body),
   rotateApiKey: () => post('/api/me/apikey/rotate'),
   deleteAccount: (password) => send('/api/me', 'DELETE', { password }),
 

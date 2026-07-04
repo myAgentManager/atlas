@@ -14,7 +14,9 @@ import { engineInfo, converse } from './atlas/core.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
 import { understand, titleFor } from './atlas/nlu.js';
 import { slugify } from './atlas/skills.js';
-import { smsReady } from './notify.js';
+import { smsReady, sendSms } from './notify.js';
+import { sendEmail } from './email.js';
+import { channelStatus } from './platform.js';
 import { forUser, mimeFor } from './tools.js';
 import { startAdmin } from './admin.js';
 import { dbMode } from './db.js';
@@ -77,7 +79,7 @@ app.post('/api/auth/register', (req, res) => {
   } catch (e) { auth.rateFail(key, 10, 30 * 60_000); bad(res, 400, e.message); }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body || {};
   const key = `login:${req.ip}:${String(email).toLowerCase()}`;
   if (!auth.rateCheck(key)) return bad(res, 429, 'Too many attempts — try again in 15 minutes.');
@@ -91,9 +93,33 @@ app.post('/api/auth/login', (req, res) => {
   }
   if (user.disabled) return bad(res, 403, 'This account is disabled. Contact the server owner.');
   auth.rateClear(key);
-  if (user.totp.enabled) {
-    return res.json({ need2sv: true, pending: auth.createPending(user.id) });
+
+  // Second step — by whichever method the account enrolled in.
+  const method = auth.secondMethod(user);
+  if (method === 'totp') {
+    return res.json({ need2sv: true, method, pending: auth.createPending(user.id, { method }) });
   }
+  if (method === 'email' || method === 'sms') {
+    if (!channelStatus().twoStep[method]) {
+      return bad(res, 503, `${method === 'email' ? 'Email' : 'SMS'} verification is currently unavailable on this server — contact the administrator.`);
+    }
+    const dest = method === 'email' ? user.email : (user.settings?.smsTo || '');
+    if (!dest) return bad(res, 400, 'No destination on file for your verification code — contact the administrator.');
+    const code = auth.genCode();
+    try {
+      if (method === 'email') {
+        await sendEmail({ to: dest, subject: 'Your Atlas Network sign-in code', text: `Your sign-in code is: ${code}\n\nIt expires in 5 minutes. If this wasn't you, change your password.` });
+      } else {
+        const r = await sendSms(dest, `Atlas Network sign-in code: ${code} (expires in 5 minutes)`);
+        if (!r.ok) throw new Error(r.error || 'SMS send failed');
+      }
+    } catch (e) {
+      auth.audit('auth', `2SV code send failed for ${user.email}: ${e.message}`);
+      return bad(res, 502, 'Could not send your verification code — try again in a minute or contact the administrator.');
+    }
+    return res.json({ need2sv: true, method, hint: auth.maskDest(dest), pending: auth.createPending(user.id, { method, code }) });
+  }
+
   auth.setCookie(res, 'ma_sess', auth.createSession(user.id), { secure: req.secure });
   auth.audit('auth', `signed in: ${user.email}`);
   res.json({ user: auth.publicUser(user) });
@@ -103,16 +129,21 @@ app.post('/api/auth/verify', (req, res) => {
   const { pending, code } = req.body || {};
   const key = `2sv:${req.ip}`;
   if (!auth.rateCheck(key)) return bad(res, 429, 'Too many attempts — try again later.');
-  const user = auth.takePending(pending);
-  if (!user) return bad(res, 400, 'Verification window expired — sign in again.');
-  if (!auth.checkSecondFactor(user, code)) {
+  const p = auth.takePending(pending);
+  if (!p) return bad(res, 400, 'Verification window expired — sign in again.');
+  const ok = p.method === 'totp'
+    ? auth.checkSecondFactor(p.user, code)   // authenticator or backup code
+    : auth.codeMatches(code, p.code);        // emailed / texted code
+  if (!ok) {
     auth.rateFail(key);
-    return bad(res, 401, 'That code didn\'t match. Check your authenticator and try again.');
+    return bad(res, 401, p.method === 'totp'
+      ? 'That code didn\'t match. Check your authenticator and try again.'
+      : 'That code didn\'t match. Check the message we sent and sign in again.');
   }
   auth.rateClear(key);
-  auth.setCookie(res, 'ma_sess', auth.createSession(user.id), { secure: req.secure });
-  auth.audit('auth', `signed in (2SV): ${user.email}`);
-  res.json({ user: auth.publicUser(user) });
+  auth.setCookie(res, 'ma_sess', auth.createSession(p.user.id), { secure: req.secure });
+  auth.audit('auth', `signed in (2SV ${p.method}): ${p.user.email}`);
+  res.json({ user: auth.publicUser(p.user) });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -161,11 +192,50 @@ app.post('/api/me/2sv/enable', auth.requireAuth, (req, res) => {
   if (!backup) return bad(res, 400, 'Code didn\'t match — scan the secret again and retry.');
   res.json({ ok: true, backup });
 });
+// Enroll in email/SMS codes: we send one to prove the channel works, then
+// /confirm locks the method in.
+const enrolls = new Map(); // userId -> { method, code, exp }
+app.post('/api/me/2sv/method/start', auth.requireAuth, async (req, res) => {
+  const method = req.body?.method;
+  if (!['email', 'sms'].includes(method)) return bad(res, 400, 'method must be email or sms');
+  if (!channelStatus().twoStep[method]) return bad(res, 503, `${method === 'email' ? 'Email' : 'SMS'} verification is Not Available on this server.`);
+  const dest = method === 'email' ? req.user.email : (req.user.settings?.smsTo || '');
+  if (!dest) return bad(res, 400, 'Add your phone number under Notifications first.');
+  const code = auth.genCode();
+  try {
+    if (method === 'email') {
+      await sendEmail({ to: dest, subject: 'Your Atlas Network verification code', text: `Your verification code is: ${code}\n\nEnter it in Settings to turn on email sign-in codes. It expires in 5 minutes.` });
+    } else {
+      const r = await sendSms(dest, `Atlas Network verification code: ${code} (expires in 5 minutes)`);
+      if (!r.ok) throw new Error(r.error || 'SMS send failed');
+    }
+  } catch (e) {
+    auth.audit('auth', `2SV enroll send failed for ${req.user.email}: ${e.message}`);
+    return bad(res, 502, `Couldn't send the code (${e.message}). Check the channel settings in the admin console.`);
+  }
+  enrolls.set(req.user.id, { method, code, exp: Date.now() + 5 * 60_000 });
+  res.json({ ok: true, hint: auth.maskDest(dest) });
+});
+app.post('/api/me/2sv/method/confirm', auth.requireAuth, (req, res) => {
+  const e = enrolls.get(req.user.id);
+  if (!e || e.exp < Date.now()) return bad(res, 400, 'That code expired — start again.');
+  if (!auth.codeMatches(req.body?.code, e.code)) return bad(res, 401, 'That code didn\'t match.');
+  enrolls.delete(req.user.id);
+  auth.setSecondMethod(req.user, e.method);
+  res.json({ user: auth.publicUser(auth.getUser(req.user.id)) });
+});
+
 app.post('/api/me/2sv/disable', auth.requireAuth, (req, res) => {
-  if (!req.user.totp.enabled) return res.json({ ok: true });
-  if (!auth.checkSecondFactor(req.user, req.body?.code)) return bad(res, 401, 'Enter a valid current code to turn 2SV off.');
-  auth.disableTotp(req.user);
-  res.json({ ok: true });
+  const method = auth.secondMethod(req.user);
+  if (!method) return res.json({ ok: true });
+  const { code, password } = req.body || {};
+  const ok =
+    (password && auth.verifyPassword(req.user, password)) ||
+    (method === 'totp' && code && auth.checkSecondFactor(req.user, code)) ||
+    auth.isOAuthOnly(req.user);
+  if (!ok) return bad(res, 401, 'Confirm with your password (or a current code) to turn 2SV off.');
+  auth.disableSecond(req.user);
+  res.json({ user: auth.publicUser(auth.getUser(req.user.id)) });
 });
 
 app.post('/api/me/apikey/rotate', auth.requireAuth, (req, res) => {

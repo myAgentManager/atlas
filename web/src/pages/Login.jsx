@@ -14,6 +14,8 @@ export default function Login({ agent, onDone, onHome }) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(null);
+  const [twoMethod, setTwoMethod] = useState('totp'); // totp | email | sms
+  const [twoHint, setTwoHint] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -28,8 +30,12 @@ export default function Login({ agent, onDone, onHome }) {
         onDone(user);
       } else if (mode === 'signin') {
         const res = await api.login({ email, password });
-        if (res.need2sv) { setPending(res.pending); setMode('twostep'); }
-        else onDone(res.user);
+        if (res.need2sv) {
+          setPending(res.pending);
+          setTwoMethod(res.method || 'totp');
+          setTwoHint(res.hint || '');
+          setMode('twostep');
+        } else onDone(res.user);
       } else {
         const { user } = await api.verify2sv({ pending, code });
         onDone(user);
@@ -55,7 +61,11 @@ export default function Login({ agent, onDone, onHome }) {
           <>
             <div className="auth-icon"><Icon name="shield" size={26} /></div>
             <h1 className="auth-h1">Two-step check</h1>
-            <p className="auth-sub">Enter the 6-digit code from your authenticator app — or one of your backup codes.</p>
+            <p className="auth-sub">
+              {twoMethod === 'email' && <>We emailed a 6-digit code to <b>{twoHint}</b>. It expires in 5 minutes.</>}
+              {twoMethod === 'sms' && <>We texted a 6-digit code to <b>{twoHint}</b>. It expires in 5 minutes.</>}
+              {twoMethod === 'totp' && <>Enter the 6-digit code from your authenticator app — or one of your backup codes.</>}
+            </p>
             <input
               className="field code-field" autoFocus inputMode="numeric" maxLength={10}
               placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)}

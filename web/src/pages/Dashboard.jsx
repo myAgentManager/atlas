@@ -24,10 +24,13 @@ export default function Dashboard({ agent, user, tasks, reload }) {
   const [slug, setSlug] = useState(null);      // selected project
   const [naming, setNaming] = useState(false); // "new project" mini-form
   const [newName, setNewName] = useState('');
-  const [tab, setTab] = useState('tasks');     // tasks | files | database | chat
+  const [query, setQuery] = useState('');      // sidebar search
+  const [tab, setTab] = useState('overview');  // overview | tasks | files | database | chat
 
-  const loadProjects = () => api.projects().then(setProjects).catch(() => {});
-  useEffect(loadProjects, []);
+  // NB: never hand useEffect a promise-returning fn — React calls the return
+  // value as "cleanup" on unmount and crashes the whole tree.
+  const loadProjects = () => { api.projects().then(setProjects).catch(() => {}); };
+  useEffect(() => { loadProjects(); }, []); // eslint-disable-line
   useEffect(() => { loadProjects(); }, [tasks.length]); // new/removed tasks → refresh stats
 
   // Merge live task state into the sidebar so LEDs are current.
@@ -68,14 +71,17 @@ export default function Dashboard({ agent, user, tasks, reload }) {
       {/* ------- project sidebar ------- */}
       <aside className="panel proj-side">
         <div className="panel-title"><Icon name="globe" size={14} /> Projects <span className="count-chip">{cards.length}</span></div>
+        {cards.length > 3 && (
+          <input className="field proj-search" placeholder="Search projects…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        )}
         <div className="proj-scroll">
           {cards.length === 0 && !naming && (
             <div className="empty">No projects yet.<br />Create one and give {name} its first task.</div>
           )}
-          {cards.map((p) => (
+          {cards.filter((p) => !query || (p.name || p.slug).toLowerCase().includes(query.toLowerCase())).map((p) => (
             <button key={p.slug} className={`proj-row ${slug === p.slug ? 'active' : ''}`}
-              onClick={() => { setSlug(p.slug); setTab('tasks'); }}>
-              <span className="proj-glyph">{(p.name || p.slug)[0].toUpperCase()}</span>
+              onClick={() => { setSlug(p.slug); setTab('overview'); }}>
+              <span className="proj-glyph orb">{(p.name || p.slug)[0].toUpperCase()}</span>
               <span className="proj-main">
                 <span className="proj-name">{p.name || p.slug}</span>
                 <span className="proj-sub">{p.tasks} task{p.tasks !== 1 ? 's' : ''} · {p.files} file{p.files !== 1 ? 's' : ''}{p.collections ? ` · ${p.collections} db` : ''}</span>
@@ -116,7 +122,7 @@ export default function Dashboard({ agent, user, tasks, reload }) {
               </div>
             </div>
             <nav className="wtabs">
-              {[['tasks', 'Tasks', 'bolt'], ['files', 'Files', 'file'], ['database', 'Database', 'server'], ['chat', 'Chat', 'chat']].map(([id, label, icon]) => (
+              {[['overview', 'Overview', 'globe'], ['tasks', 'Tasks', 'bolt'], ['files', 'Files', 'file'], ['database', 'Database', 'server'], ['chat', 'Chat', 'chat']].map(([id, label, icon]) => (
                 <button key={id} className={`wtab ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
                   <Icon name={icon} size={14} /> {label}
                 </button>
@@ -124,12 +130,92 @@ export default function Dashboard({ agent, user, tasks, reload }) {
             </nav>
           </header>
 
+          {tab === 'overview' && <OverviewTab name={name} card={current} tasks={projectTasks} goto={setTab} />}
           {tab === 'tasks' && <TasksTab name={name} agent={agent} slug={current.slug} projectName={current.name} tasks={projectTasks} reload={reload} />}
           {tab === 'files' && <Files project={current.slug} />}
           {tab === 'database' && <Database fixedProject={current.slug} tasks={tasks} user={user} />}
           {tab === 'chat' && <ChatTab name={name} slug={current.slug} onTaskMade={reload} />}
         </section>
       )}
+    </div>
+  );
+}
+
+/* ========================== OVERVIEW TAB =================================== */
+function OverviewTab({ name, card, tasks, goto }) {
+  const [files, setFiles] = useState([]);
+  useEffect(() => {
+    api.files().then((all) => setFiles(all.filter((f) => f.path.startsWith(card.slug + '/')).sort((a, b) => b.mtime - a.mtime))).catch(() => {});
+  }, [card.slug]);
+
+  // Latest activity across every task in the project.
+  const activity = useMemo(() => {
+    const evs = [];
+    for (const t of tasks) for (const e of (t.events || []).slice(-6)) evs.push({ ...e, taskTitle: t.title });
+    return evs.sort((a, b) => b.ts - a.ts).slice(0, 8);
+  }, [tasks]);
+
+  const done = tasks.filter((t) => t.status === 'done').length;
+  const needsYou = tasks.filter((t) => t.status === 'awaiting-input').length;
+
+  return (
+    <div className="overview-grid">
+      <div className="ov-tiles">
+        <button className="ov-tile panel" onClick={() => goto('tasks')}>
+          <span className="ov-num">{card.tasks}</span><span className="ov-label">Tasks</span>
+        </button>
+        <button className="ov-tile panel" onClick={() => goto('tasks')}>
+          <span className="ov-num green">{done}</span><span className="ov-label">Done</span>
+        </button>
+        <button className="ov-tile panel" onClick={() => goto('files')}>
+          <span className="ov-num">{card.files}</span><span className="ov-label">Files</span>
+        </button>
+        <button className="ov-tile panel" onClick={() => goto('database')}>
+          <span className="ov-num">{card.collections}</span><span className="ov-label">Collections</span>
+        </button>
+      </div>
+
+      {needsYou > 0 && (
+        <button className="ov-alert" onClick={() => goto('tasks')}>
+          <Icon name="chat" size={15} /> {name} has {needsYou === 1 ? 'a question' : `${needsYou} questions`} waiting — tap to answer.
+        </button>
+      )}
+
+      <div className="ov-cols">
+        <div className="panel ov-panel">
+          <div className="panel-title"><Icon name="bolt" size={14} /> Latest activity</div>
+          <div className="ov-feed">
+            {activity.length === 0 && <div className="empty">Quiet so far. Assign the first task.</div>}
+            {activity.map((e) => (
+              <div key={e.id} className="ov-line">
+                <span className={`feed-icon mini ${e.type}`}><Icon name={eventIcon(e.type)} size={12} /></span>
+                <div className="ov-line-main">
+                  <span className="ov-line-text">{String(e.text).slice(0, 110)}</span>
+                  <span className="ov-line-sub">{e.taskTitle} · {new Date(e.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel ov-panel">
+          <div className="panel-title"><Icon name="file" size={14} /> Newest artifacts</div>
+          <div className="ov-feed">
+            {files.length === 0 && <div className="empty">Nothing built yet — everything {name} makes lands here.</div>}
+            {files.slice(0, 6).map((f) => (
+              <a key={f.path} className="ov-file" href={'/files/' + f.path} target="_blank" rel="noreferrer">
+                <Icon name="file" size={13} />
+                <span className="ov-file-name">{f.path.slice(card.slug.length + 1)}</span>
+                <span className="ov-file-sub">{new Date(f.mtime).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+              </a>
+            ))}
+          </div>
+          <div className="ov-actions">
+            <button className="gel-btn gel-primary" onClick={() => goto('tasks')}><Icon name="spark" size={14} /> New task</button>
+            <button className="gel-btn" onClick={() => goto('chat')}><Icon name="chat" size={14} /> Ask {name}</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

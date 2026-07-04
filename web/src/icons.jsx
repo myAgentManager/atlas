@@ -44,37 +44,70 @@ export function Icon({ name, size = 20, className = '' }) {
   );
 }
 
-// The Atlas Networks mark: a glossy deep-blue globe with white continents and
-// a gel highlight — transparent outside the sphere. Hand-drawn original.
+// The Atlas Networks mark: a skeuomorphic 3D glossy globe — deep navy sphere,
+// beveled white continents, a curved glass reflection across the top, and a
+// rim of bounced light at the base. Transparent outside the sphere.
 export function Mark({ size = 28 }) {
   const uid = React.useId().replace(/:/g, '');
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
       <defs>
-        <radialGradient id={`sea${uid}`} cx="36%" cy="30%" r="85%">
-          <stop offset="0%" stopColor="#3f7fca" />
-          <stop offset="45%" stopColor="#1e4f96" />
-          <stop offset="80%" stopColor="#0e2a5c" />
-          <stop offset="100%" stopColor="#081a3d" />
+        {/* ocean: lit upper-left, falling to near-black navy at the edge */}
+        <radialGradient id={`sea${uid}`} cx="34%" cy="26%" r="90%">
+          <stop offset="0%" stopColor="#5a9be0" />
+          <stop offset="35%" stopColor="#2762ad" />
+          <stop offset="70%" stopColor="#123a77" />
+          <stop offset="100%" stopColor="#050f2b" />
         </radialGradient>
+        {/* inner shading: darkens the sphere's lower-right like a real ball */}
+        <radialGradient id={`shade${uid}`} cx="34%" cy="26%" r="95%">
+          <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="72%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000814" stopOpacity="0.55" />
+        </radialGradient>
+        {/* glass window reflection */}
         <linearGradient id={`gloss${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="#ffffff" stopOpacity="0.25" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        {/* bounced light on the bottom rim */}
+        <linearGradient id={`rim${uid}`} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor="#6fb6ff" stopOpacity="0.5" />
+          <stop offset="35%" stopColor="#6fb6ff" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#6fb6ff" stopOpacity="0" />
         </linearGradient>
         <clipPath id={`disc${uid}`}><circle cx="32" cy="32" r="28" /></clipPath>
       </defs>
+
       <circle cx="32" cy="32" r="28" fill={`url(#sea${uid})`} />
-      <g clipPath={`url(#disc${uid})`} fill="#f4f8fd">
-        {/* abstracted continents — americas center, africa/europe right, like the mark */}
-        <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
-        <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".95" />
-        <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
-        <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".9" />
+
+      <g clipPath={`url(#disc${uid})`}>
+        {/* continents: dark offset copy underneath fakes a beveled emboss */}
+        <g fill="#0a2a55" transform="translate(0.9 1.2)" opacity="0.85">
+          <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
+          <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" />
+          <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
+          <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" />
+        </g>
+        <g fill="#f7fafd">
+          <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
+          <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".97" />
+          <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
+          <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".95" />
+        </g>
+
+        {/* sphere shading + bottom bounce light */}
+        <circle cx="32" cy="32" r="28" fill={`url(#shade${uid})`} />
+        <path d="M6 44 A28 28 0 0 0 58 44 A34 22 0 0 1 6 44 Z" fill={`url(#rim${uid})`} />
+
+        {/* glass reflection: upper window with a curved belly */}
+        <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z"
+          fill={`url(#gloss${uid})`} opacity="0.8" />
+        <ellipse cx="22" cy="12.5" rx="7.5" ry="4" fill="#ffffff" opacity="0.9" />
       </g>
-      {/* gel highlight */}
-      <ellipse cx="25" cy="17" rx="16" ry="9" fill={`url(#gloss${uid})`} opacity="0.75" />
-      <circle cx="41" cy="14" r="3.2" fill="#ffffff" opacity="0.85" />
-      <circle cx="32" cy="32" r="27.4" stroke="#7db4e8" strokeOpacity="0.35" strokeWidth="1" />
+
+      <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" strokeOpacity="0.8" strokeWidth="1" />
     </svg>
   );
 }

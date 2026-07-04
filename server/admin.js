@@ -96,7 +96,10 @@ export function startAdmin({ enqueue }) {
     res.json({ ok: Boolean(u) });
   });
   app.post('/api/users/:id/reset-2sv', guard, (req, res) => {
-    const u = auth.updateUser(req.params.id, (u) => { u.totp = { secret: null, enabled: false, backup: [] }; });
+    const u = auth.updateUser(req.params.id, (u) => {
+      u.totp = { secret: null, enabled: false, backup: [] };
+      u.second = { method: null };
+    });
     if (u) auth.audit('admin', `2SV reset: ${u.email}`);
     res.json({ ok: Boolean(u) });
   });

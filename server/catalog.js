@@ -53,6 +53,39 @@ export const CONNECTORS = {
     ],
     required: ['url'],
   },
+  slack: {
+    id: 'slack', name: 'Slack', icon: 'chat',
+    blurb: 'Ping your team in Slack when an agent flags an issue or a hot lead.',
+    fields: [{ key: 'url', label: 'Incoming webhook URL', placeholder: 'https://hooks.slack.com/services/…' }],
+    required: ['url'],
+  },
+  whatsapp: {
+    id: 'whatsapp', name: 'WhatsApp', icon: 'chat',
+    blurb: 'Let agents chat with customers on WhatsApp (via your provider).',
+    fields: [
+      { key: 'phone', label: 'WhatsApp number', placeholder: '+15555550123' },
+      { key: 'token', label: 'API token', secret: true },
+    ],
+    required: ['phone', 'token'],
+  },
+  website: {
+    id: 'website', name: 'Website knowledge', icon: 'globe',
+    blurb: 'Point agents at your site so they learn your products and pages.',
+    fields: [{ key: 'url', label: 'Website URL', placeholder: 'https://yourbusiness.com' }],
+    required: ['url'],
+  },
+  sheets: {
+    id: 'sheets', name: 'Google Sheets', icon: 'file',
+    blurb: 'Log leads, orders and bookings into a spreadsheet automatically.',
+    fields: [{ key: 'url', label: 'Sheet webhook / Apps Script URL', placeholder: 'https://script.google.com/…' }],
+    required: ['url'],
+  },
+  payments: {
+    id: 'payments', name: 'Payments (Stripe)', icon: 'spark',
+    blurb: 'Let agents send payment links and take deposits on bookings.',
+    fields: [{ key: 'key', label: 'Stripe secret key', secret: true, placeholder: 'sk_live_…' }],
+    required: ['key'],
+  },
 };
 
 // What an agent can be told to do. `needs` lists connectors required for it to

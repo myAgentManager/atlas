@@ -13,13 +13,19 @@ const save = () => saveDoc('business', db);
 
 function biz(userId) {
   db.biz[userId] ||= {
-    profile: { name: '', tagline: '', about: '', hours: '', services: '', tone: 'friendly', languages: 'English', trained: false },
+    profile: {
+      name: '', tagline: '', about: '', hours: '', services: '', tone: 'friendly', languages: 'English',
+      phone: '', email: '', website: '', address: '', routeTo: '', escalateOn: '', trained: false,
+    },
     faqs: [],
     customers: [],
     bookings: [],
     inbox: [],
+    seenEmails: [],
   };
-  return db.biz[userId];
+  const b = db.biz[userId];
+  b.seenEmails ||= [];
+  return b;
 }
 
 export const getBusiness = (userId) => biz(userId);
@@ -73,13 +79,35 @@ export function addBooking(userId, { customer, service, when, notes }) {
 export const listBookings = (userId) => biz(userId).bookings;
 
 // --- inbox (conversations) --------------------------------------------------
-export function openConversation(userId, { channel, customer, subject }) {
+export function openConversation(userId, { channel, customer, subject, agentId, customerEmail }) {
   const b = biz(userId);
-  const convo = { id: randomUUID().slice(0, 8), channel: channel || 'chat', customer: customer || 'Guest', subject: subject || '(no subject)', messages: [], status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
+  const convo = { id: randomUUID().slice(0, 8), channel: channel || 'chat', agentId: agentId || null, customer: customer || 'Guest', customerEmail: customerEmail || '', subject: subject || '(no subject)', messages: [], status: 'open', createdAt: Date.now(), updatedAt: Date.now() };
   b.inbox.unshift(convo);
   if (b.inbox.length > 300) b.inbox.length = 300;
   save();
   return convo;
+}
+export const listConversationsForAgent = (userId, agentId) => biz(userId).inbox.filter((c) => c.agentId === agentId);
+
+// Email de-dup so the poller never answers the same message twice.
+export function emailKey(m) {
+  return `${(m.from || '').slice(0, 40)}|${(m.subject || '').slice(0, 60)}|${(m.date || '').slice(0, 24)}`;
+}
+export function seenEmail(userId, key) { return biz(userId).seenEmails.includes(key); }
+export function markEmail(userId, key) {
+  const b = biz(userId);
+  b.seenEmails.push(key);
+  if (b.seenEmails.length > 500) b.seenEmails.splice(0, b.seenEmails.length - 500);
+  save();
+}
+
+// CRM detail: a customer plus their conversation history.
+export function customerDetail(userId, id) {
+  const b = biz(userId);
+  const c = b.customers.find((x) => x.id === id);
+  if (!c) return null;
+  const convos = b.inbox.filter((v) => (v.customerEmail && v.customerEmail === c.email) || v.customer === c.name);
+  return { ...c, conversations: convos.map((v) => ({ id: v.id, channel: v.channel, subject: v.subject, updatedAt: v.updatedAt, messages: v.messages.length })) };
 }
 export function getConversation(userId, id) {
   return biz(userId).inbox.find((c) => c.id === id) || null;
@@ -106,24 +134,28 @@ export function draftReply(userId, text) {
   const p = b.profile;
   const name = p.name || 'our team';
   const hello = { friendly: 'Hi there!', formal: 'Hello,', warm: 'Hey, thanks for reaching out!' }[p.tone] || 'Hi there!';
-  const sign = `\n\n— ${name}${p.hours ? `\nHours: ${p.hours}` : ''}`;
+  const contact = [p.phone && `Call: ${p.phone}`, p.website && p.website, p.address].filter(Boolean).join(' · ');
+  const sign = `\n\n— ${name}${p.hours ? `\nHours: ${p.hours}` : ''}${contact ? `\n${contact}` : ''}`;
 
   const wantsBooking = /\b(book|appointment|schedule|reserve|reservation|availability|slot|come in)\b/i.test(text);
   const wantsOrder = /\b(order|buy|purchase|price|pricing|cost|how much|quote)\b/i.test(text);
-  const upset = /\b(angry|terrible|refund|complaint|awful|worst|cancel|disappointed|broken)\b/i.test(text);
+  const escalateWords = (p.escalateOn || '').split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
+  const upset = /\b(angry|terrible|refund|complaint|awful|worst|cancel|disappointed|broken)\b/i.test(text)
+    || escalateWords.some((w) => text.toLowerCase().includes(w));
 
   const faq = bestFaq(userId, text);
   let body;
   if (faq) body = faq.a || `Great question — here's what I can share: ${faq.q}`;
   else if (wantsBooking) body = `I'd be glad to get you booked${p.services ? ` for ${p.services.split(',')[0].trim()}` : ''}. What day and time work best for you? I'll confirm right away.`;
   else if (wantsOrder) body = `Happy to help with that${p.services ? ` — we offer ${p.services}` : ''}. Tell me a bit more about what you're looking for and I'll get you exact details and pricing.`;
-  else if (p.about) body = `Thanks for reaching out! ${p.about.slice(0, 200)} How can I help you today?`;
-  else body = `Thanks for reaching out! How can I help you today?`;
+  else if (p.about) body = `${p.about.slice(0, 200)} How can I help you today?`;
+  else body = `How can I help you today?`;
 
   return {
     text: `${hello} ${body}${sign}`,
     intent: wantsBooking ? 'booking' : wantsOrder ? 'sales' : faq ? 'faq' : 'general',
     needsHuman: upset,
+    routeTo: upset ? (p.routeTo || '') : '', // where to hand off to a human
   };
 }
 

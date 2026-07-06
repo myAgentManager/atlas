@@ -1158,3 +1158,61 @@ body {
 .intro-line { color: var(--green); }
 @media (max-width: 1100px) { .plan-grid.four { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 900px) { .agents-deck { grid-template-columns: 1fr; } .agents-side { max-height: 260px; } .agent-setup { grid-template-columns: 1fr; } .agent-stats-row { grid-template-columns: repeat(2,1fr); } }
+
+/* ============================================================================
+   v12 — business setup, customers CRM, agent conversations
+   ========================================================================== */
+.business-page { flex: 1; max-width: 900px; margin: 0 auto; width: 100%; padding: 8px clamp(14px,3vw,32px) 40px; overflow-y: auto; }
+.biz-panel { margin-bottom: 16px; }
+.biz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.biz-panel .auth-label { margin-bottom: 12px; }
+.faq-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.faq-row { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; align-items: center; }
+.set-actions { display: flex; justify-content: flex-end; gap: 10px; align-items: center; }
+
+/* channel badges */
+.chan-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; padding: 3px 8px; border-radius: 6px; flex: none;
+  background: var(--well); color: var(--ink-dim); border: 1px solid var(--line); }
+.chan-badge.email { color: #2563eb; background: #eff4ff; border-color: #d3e0ff; }
+.chan-badge.chat { color: var(--cyan-deep); background: rgba(15,181,164,0.08); border-color: rgba(15,181,164,0.3); }
+.chan-badge.sms { color: #7c3aed; background: #f3ecff; border-color: #e0d0ff; }
+
+/* agent conversations */
+.convos-grid { flex: 1; display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 14px; min-height: 0; }
+.convos-list { display: flex; flex-direction: column; min-height: 0; }
+.convo-row { display: flex; align-items: center; gap: 10px; padding: 11px; border-radius: 11px; cursor: pointer; text-align: left; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow-sm); margin-bottom: 8px; }
+.convo-row.active { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(15,181,164,0.14); }
+.convo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.convo-who { font-weight: 650; font-size: 13.5px; }
+.convo-subject { font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.convo-when { font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
+.convo-thread { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.convo-system { text-align: center; font-size: 11.5px; color: var(--ink-faint); font-style: italic; padding: 6px; }
+
+/* customers CRM */
+.customers-page { flex: 1; display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; min-height: 0; padding: 0 clamp(14px,3vw,32px) 24px; }
+.cust-list-panel { display: flex; flex-direction: column; min-height: 0; }
+.cust-search { margin-bottom: 10px; }
+.cust-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.cust-row { display: flex; align-items: center; gap: 11px; padding: 10px; border-radius: 11px; cursor: pointer; text-align: left; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow-sm); }
+.cust-row.active { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(15,181,164,0.14); }
+.cust-avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; flex: none;
+  background: linear-gradient(180deg,#17c6b3,#0fb5a4); box-shadow: inset 0 1px 0 rgba(255,255,255,0.5); }
+.cust-avatar.big { width: 52px; height: 52px; font-size: 22px; }
+.cust-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cust-name { font-weight: 650; font-size: 14px; }
+.cust-sub { font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cust-when { font-size: 10.5px; color: var(--ink-faint); }
+.cust-detail { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.cust-head { display: flex; align-items: center; gap: 15px; }
+.cust-title { font-weight: 750; font-size: 19px; letter-spacing: -0.3px; }
+.cust-contact { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 5px; font-size: 12.5px; color: var(--ink-dim); }
+.cust-contact span { display: inline-flex; align-items: center; gap: 5px; }
+.cust-convos { flex: 1; min-height: 0; overflow-y: auto; }
+.cust-convo { display: flex; align-items: center; gap: 11px; padding: 11px 4px; border-bottom: 1px solid var(--line); }
+.cust-convo-subject { flex: 1; font-size: 13.5px; }
+.cust-convo-meta { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+@media (max-width: 900px) {
+  .convos-grid, .customers-page { grid-template-columns: 1fr; }
+  .biz-grid, .faq-row { grid-template-columns: 1fr; }
+}

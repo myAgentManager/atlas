@@ -18,6 +18,7 @@ import * as agents from './agents.js';
 import * as connectors from './connectors.js';
 import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { fetchRecent } from './imap.js';
+import { sendVia } from './email.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
 import { understand, titleFor } from './atlas/nlu.js';
 import { slugify } from './atlas/skills.js';
@@ -424,6 +425,10 @@ app.patch('/api/agents/:id', auth.requireAuth, (req, res) => {
   return a ? res.json(a) : bad(res, 404, 'not found');
 });
 app.delete('/api/agents/:id', auth.requireAuth, (req, res) => res.json({ ok: agents.deleteAgent(req.user.id, req.params.id) }));
+app.get('/api/agents/:id/conversations', auth.requireAuth, (req, res) => {
+  if (!agents.getAgent(req.user.id, req.params.id)) return bad(res, 404, 'not found');
+  res.json(biz.listConversationsForAgent(req.user.id, req.params.id));
+});
 
 // Send a test message to one of your agents (or a real customer message).
 app.post('/api/agents/:id/message', auth.requireAuth, (req, res) => {
@@ -433,7 +438,7 @@ app.post('/api/agents/:id/message', auth.requireAuth, (req, res) => {
   if (!text) return bad(res, 400, 'text required');
   const from = String(req.body?.from || 'Guest');
   const customer = biz.upsertCustomer(req.user.id, { name: from });
-  const convo = biz.openConversation(req.user.id, { channel: req.body?.channel || 'chat', customer: customer.name, subject: text.slice(0, 40) });
+  const convo = biz.openConversation(req.user.id, { channel: req.body?.channel || 'chat', agentId: agent.id, customer: customer.name, subject: text.slice(0, 40) });
   biz.addMessage(req.user.id, convo.id, 'customer', text);
   const reply = agents.handle(req.user.id, agent, text);
   biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
@@ -454,6 +459,10 @@ app.patch('/api/business/profile', auth.requireAuth, (req, res) => res.json(biz.
 app.put('/api/business/faqs', auth.requireAuth, (req, res) => res.json(biz.setFaqs(req.user.id, req.body?.faqs)));
 
 app.get('/api/business/customers', auth.requireAuth, (req, res) => res.json(biz.listCustomers(req.user.id)));
+app.get('/api/business/customers/:id', auth.requireAuth, (req, res) => {
+  const c = biz.customerDetail(req.user.id, req.params.id);
+  return c ? res.json(c) : bad(res, 404, 'not found');
+});
 app.get('/api/business/bookings', auth.requireAuth, (req, res) => res.json(biz.listBookings(req.user.id)));
 
 app.get('/api/business/inbox', auth.requireAuth, (req, res) => res.json(biz.listInbox(req.user.id)));
@@ -487,22 +496,56 @@ app.post('/api/business/inbox/:id/reply', auth.requireAuth, async (req, res) => 
   res.json({ ok: true, conversation: biz.getConversation(req.user.id, c.id) });
 });
 
-// Pull new mail from the owner's IMAP inbox → conversations + drafted replies.
-app.post('/api/business/check-email', auth.requireAuth, async (req, res) => {
-  if (!billing.entitled(req.user, 'email_in')) return bad(res, 402, 'Receiving email is a Pro feature — upgrade to unlock it.');
-  const cfg = req.user.settings?.imap;
-  if (!cfg?.host) return bad(res, 400, 'Add your mailbox under Settings → Email to let the agent read it.');
-  try {
-    const msgs = await fetchRecent(cfg, 8);
-    let added = 0;
-    for (const m of msgs) {
-      const convo = biz.openConversation(req.user.id, { channel: 'email', customer: m.from || 'Sender', subject: m.subject });
-      biz.addMessage(req.user.id, convo.id, 'customer', m.text || '(no text)');
-      const reply = biz.draftReply(req.user.id, `${m.subject} ${m.text}`);
-      biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
-      added++;
+// The email agent: pull new mail (IMAP), let the account's email agent draft a
+// reply from the Business Brain, and actually SEND it back via the owner's SMTP.
+// Escalations route to a human. De-duped so a message is answered once.
+async function runEmailForUser(user) {
+  if (!billing.entitled(user, 'email')) return { handled: 0, reason: 'plan' };
+  const imapCfg = connectors.getConnectorConfig(user.id, 'imap');
+  if (!imapCfg?.host) return { handled: 0, reason: 'no-imap' };
+  const agent = agents.listAgents(user.id).find((a) => a.status === 'active' && a.capabilities.includes('email'));
+  if (!agent) return { handled: 0, reason: 'no-agent' };
+
+  const smtpCfg = connectors.getConnectorConfig(user.id, 'smtp');
+  const msgs = await fetchRecent(imapCfg, 8);
+  let handled = 0;
+  for (const m of msgs) {
+    const key = biz.emailKey(m);
+    if (biz.seenEmail(user.id, key)) continue;
+    biz.markEmail(user.id, key);
+    const senderEmail = (String(m.from).match(/<([^>]+)>/) || [])[1] || String(m.from).trim();
+    const senderName = String(m.from).replace(/<[^>]+>/, '').replace(/"/g, '').trim() || senderEmail;
+    const customer = biz.upsertCustomer(user.id, { name: senderName, email: senderEmail });
+    const convo = biz.openConversation(user.id, { channel: 'email', agentId: agent.id, customer: customer.name, customerEmail: senderEmail, subject: m.subject });
+    biz.addMessage(user.id, convo.id, 'customer', m.text || '(no text)');
+    const reply = agents.handle(user.id, agent, `${m.subject} ${m.text}`);
+    biz.addMessage(user.id, convo.id, 'agent', reply.text);
+    agents.bumpStat(user.id, agent.id, 'handled');
+
+    if (smtpCfg?.host && senderEmail.includes('@')) {
+      try {
+        await sendVia(smtpCfg, { to: senderEmail, subject: `Re: ${m.subject}`, text: reply.text, fromName: biz.getBusiness(user.id).profile.name || agent.name });
+        biz.addMessage(user.id, convo.id, 'system', '✓ Replied by email.');
+      } catch (e) { biz.addMessage(user.id, convo.id, 'system', `Could not send reply: ${e.message}`); }
+    } else {
+      biz.addMessage(user.id, convo.id, 'system', 'Reply drafted (connect SMTP to send automatically).');
     }
-    res.json({ ok: true, pulled: added });
+    // Escalate to a human if flagged.
+    if (reply.routeTo && smtpCfg?.host) {
+      sendVia(smtpCfg, { to: reply.routeTo, subject: `[Needs you] ${m.subject}`, text: `A customer message was flagged for a human:\n\nFrom: ${m.from}\n\n${m.text}`, fromName: 'ATLAS' }).catch(() => {});
+    }
+    handled++;
+  }
+  return { handled };
+}
+
+app.post('/api/business/check-email', auth.requireAuth, async (req, res) => {
+  if (!billing.entitled(req.user, 'email')) return bad(res, 402, 'The email capability isn\'t on your plan — upgrade to unlock it.');
+  if (!connectors.getConnectorConfig(req.user.id, 'imap')?.host) return bad(res, 400, 'Connect your email inbox under Integrations first.');
+  try {
+    const out = await runEmailForUser(req.user);
+    if (out.reason === 'no-agent') return bad(res, 400, 'Create an active agent with the "Respond to emails" capability first.');
+    res.json({ ok: true, pulled: out.handled });
   } catch (e) { bad(res, 502, e.message); }
 });
 
@@ -816,6 +859,23 @@ if (STUDY_MIN > 0) {
   setTimeout(studyTick, 30_000);
   setInterval(studyTick, STUDY_MIN * 60_000);
 }
+
+// Email agent loop: every few minutes, any account with an inbox connector and
+// an active email agent gets its new mail read + answered automatically.
+const EMAIL_MIN = Number(process.env.MYAGENT_EMAIL_MINUTES ?? 3);
+let pollingEmail = false;
+async function emailTick() {
+  if (pollingEmail || EMAIL_MIN <= 0) return;
+  pollingEmail = true;
+  try {
+    for (const user of auth.listUsers()) {
+      if (user.disabled) continue;
+      if (!connectors.getConnectorConfig(user.id, 'imap')?.host) continue;
+      await runEmailForUser(user).catch((e) => auth.audit('email', `poll failed for ${user.email}: ${e.message}`));
+    }
+  } finally { pollingEmail = false; }
+}
+if (EMAIL_MIN > 0) setInterval(emailTick, EMAIL_MIN * 60_000);
 
 app.listen(config.port, () => {
   const e = engineInfo();

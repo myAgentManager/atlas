@@ -8,6 +8,8 @@ import Settings from './pages/Settings.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Billing from './pages/Billing.jsx';
 import Integrations from './pages/Integrations.jsx';
+import Business from './pages/Business.jsx';
+import Customers from './pages/Customers.jsx';
 import Nav from './Nav.jsx';
 import { Toaster } from './toast.jsx';
 import { Reader } from './reader.jsx';
@@ -92,6 +94,8 @@ export default function App() {
     view === 'settings' ? <Settings user={user} setUser={setUser} agent={agent} onDeleted={signedOut} /> :
     view === 'billing' ? <Billing user={user} setUser={setUser} /> :
     view === 'integrations' ? <Integrations /> :
+    view === 'business' ? <Business /> :
+    view === 'customers' ? <Customers /> :
     <Dashboard agent={agent} user={user} gotoView={setView} />;
 
   return (

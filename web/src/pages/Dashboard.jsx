@@ -159,12 +159,13 @@ function AgentDetail({ agent, catalog, conns, onChange, gotoView }) {
 
       <div className="wtabs agent-tabs">
         <button className={`wtab ${tab === 'test' ? 'on' : ''}`} onClick={() => setTab('test')}><Icon name="chat" size={14} /> Test &amp; chat</button>
+        <button className={`wtab ${tab === 'convos' ? 'on' : ''}`} onClick={() => setTab('convos')}><Icon name="user" size={14} /> Conversations</button>
         <button className={`wtab ${tab === 'setup' ? 'on' : ''}`} onClick={() => setTab('setup')}><Icon name="gear" size={14} /> Capabilities &amp; tools</button>
       </div>
 
-      {tab === 'test'
-        ? <TestChat agent={agent} />
-        : <Setup agent={agent} catalog={catalog} conns={conns} needed={needed} gotoView={gotoView} />}
+      {tab === 'test' && <TestChat agent={agent} />}
+      {tab === 'convos' && <Conversations agent={agent} />}
+      {tab === 'setup' && <Setup agent={agent} catalog={catalog} conns={conns} needed={needed} gotoView={gotoView} />}
     </section>
   );
 }
@@ -205,6 +206,51 @@ function TestChat({ agent }) {
         <input className="field" placeholder="Type as a customer — “do you deliver? can I book for Friday?”" value={text}
           onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
         <button className="gel-btn gel-primary send" disabled={busy || !text.trim()} onClick={send}><Icon name="send" size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+function Conversations({ agent }) {
+  const [convos, setConvos] = useState([]);
+  const [openId, setOpenId] = useState(null);
+  useEffect(() => { api.agentConversations(agent.id).then((c) => setConvos(c.sort((a, b) => b.updatedAt - a.updatedAt))).catch(() => {}); }, [agent.id]);
+  const open = convos.find((c) => c.id === openId);
+  const fmt = (t) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  return (
+    <div className="convos-grid">
+      <div className="panel convos-list">
+        <div className="panel-title"><Icon name="user" size={14} /> Customer conversations <span className="count-chip">{convos.length}</span></div>
+        <div className="task-scroll">
+          {convos.length === 0 && <div className="empty">No customer conversations yet. When this agent handles email or chat, they land here.</div>}
+          {convos.map((c) => (
+            <button key={c.id} className={`convo-row ${openId === c.id ? 'active' : ''}`} onClick={() => setOpenId(c.id)}>
+              <span className={`chan-badge ${c.channel}`}>{c.channel}</span>
+              <span className="convo-main">
+                <span className="convo-who">{c.customer}</span>
+                <span className="convo-subject">{c.subject}</span>
+              </span>
+              <span className="convo-when">{fmt(c.updatedAt)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="panel feed convo-thread">
+        {!open ? <div className="empty" style={{ flex: 1 }}>Select a conversation to read it.</div> : (
+          <>
+            <div className="feed-head"><div className="panel-title"><Icon name="chat" size={14} /> {open.customer}</div><div className="feed-task-name">{open.subject}</div></div>
+            <div className="feed-scroll">
+              {open.messages.map((m) => (
+                m.from === 'system'
+                  ? <div key={m.id} className="convo-system">{m.text}</div>
+                  : <div key={m.id} className={`bubble-row ${m.from === 'customer' ? 'mine' : 'agent'}`}>
+                      <div className="bubble"><div className="bubble-who">{m.from === 'customer' ? open.customer : agent.name}</div><div className="bubble-text">{m.text}</div></div>
+                    </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

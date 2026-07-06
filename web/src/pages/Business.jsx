@@ -1,0 +1,87 @@
+import React, { useEffect, useState } from 'react';
+import { api } from '../api.js';
+import { Icon } from '../icons.jsx';
+import { toast } from '../toast.jsx';
+
+// What the agents learn: the business profile, contact details, human routing,
+// and the FAQ. A clean form panel, like the integrations deck.
+export default function Business() {
+  const [p, setP] = useState(null);
+  const [faqs, setFaqs] = useState([]);
+  const [savingP, setSavingP] = useState(false);
+  const [savingF, setSavingF] = useState(false);
+
+  useEffect(() => { api.business().then((b) => { setP(b.profile); setFaqs(b.faqs.length ? b.faqs : [{ q: '', a: '' }]); }).catch(() => {}); }, []);
+
+  const field = (k) => ({ value: p?.[k] || '', onChange: (e) => setP({ ...p, [k]: e.target.value }) });
+  const saveProfile = () => { setSavingP(true); api.setProfile(p).then((np) => { setP(np); toast('Business details saved.', 'ok'); }).catch((e) => toast(e.message, 'err')).finally(() => setSavingP(false)); };
+  const saveFaqs = () => { setSavingF(true); api.setFaqs(faqs.filter((f) => f.q.trim())).then(() => toast('FAQ saved.', 'ok')).catch((e) => toast(e.message, 'err')).finally(() => setSavingF(false)); };
+  const setFaq = (i, k, v) => setFaqs(faqs.map((f, j) => j === i ? { ...f, [k]: v } : f));
+
+  if (!p) return <div className="business-page"><div className="empty">Loading…</div></div>;
+
+  return (
+    <div className="business-page">
+      <div className="page-head">
+        <div><h1>Your business</h1><p>Everything here teaches your agents how to represent you — your hours, how to reach you, and what to say.</p></div>
+      </div>
+
+      <div className="panel biz-panel">
+        <div className="panel-title"><Icon name="brain" size={14} /> Profile</div>
+        <div className="biz-grid">
+          <label className="auth-label">Business name<input className="field" {...field('name')} placeholder="Luna Beans Cafe" /></label>
+          <label className="auth-label">Tagline<input className="field" {...field('tagline')} placeholder="Specialty coffee, done right" /></label>
+        </div>
+        <label className="auth-label">About — what should agents know?<textarea className="field textarea" rows={3} {...field('about')} placeholder="A cozy neighborhood cafe specializing in single-origin espresso and fresh pastries. We also cater events." /></label>
+        <div className="biz-grid">
+          <label className="auth-label">Hours<input className="field" {...field('hours')} placeholder="Mon–Sat 7am–6pm, Sun 8am–2pm" /></label>
+          <label className="auth-label">Services / products<input className="field" {...field('services')} placeholder="espresso, pastries, catering" /></label>
+        </div>
+        <div className="biz-grid">
+          <label className="auth-label">Languages<input className="field" {...field('languages')} placeholder="English, Spanish" /></label>
+          <label className="auth-label">Tone
+            <select className="select" value={p.tone || 'friendly'} onChange={(e) => setP({ ...p, tone: e.target.value })}>
+              <option value="friendly">Friendly</option><option value="warm">Warm</option><option value="formal">Formal</option>
+            </select>
+          </label>
+        </div>
+        <div className="set-actions"><button className="gel-btn gel-primary" disabled={savingP} onClick={saveProfile}>Save details</button></div>
+      </div>
+
+      <div className="panel biz-panel">
+        <div className="panel-title"><Icon name="plug" size={14} /> Contact &amp; routing</div>
+        <p className="dim-note">Agents share these with customers, and hand off to a real person when things get sensitive.</p>
+        <div className="biz-grid">
+          <label className="auth-label">Phone<input className="field" {...field('phone')} placeholder="+1 555 555 0100" /></label>
+          <label className="auth-label">Public email<input className="field" {...field('email')} placeholder="hello@business.com" /></label>
+        </div>
+        <div className="biz-grid">
+          <label className="auth-label">Website<input className="field" {...field('website')} placeholder="yourbusiness.com" /></label>
+          <label className="auth-label">Address<input className="field" {...field('address')} placeholder="12 Bean Street, Portland" /></label>
+        </div>
+        <div className="biz-grid">
+          <label className="auth-label">Route to a human (email)<input className="field" {...field('routeTo')} placeholder="owner@business.com" /></label>
+          <label className="auth-label">Escalate on keywords<input className="field" {...field('escalateOn')} placeholder="lawyer, urgent, refund" /></label>
+        </div>
+        <div className="set-actions"><button className="gel-btn gel-primary" disabled={savingP} onClick={saveProfile}>Save contact &amp; routing</button></div>
+      </div>
+
+      <div className="panel biz-panel">
+        <div className="panel-title"><Icon name="chat" size={14} /> FAQ — answers your agents give</div>
+        <div className="faq-list">
+          {faqs.map((f, i) => (
+            <div key={i} className="faq-row">
+              <input className="field faq-q" placeholder="Question (e.g. Do you have parking?)" value={f.q} onChange={(e) => setFaq(i, 'q', e.target.value)} />
+              <input className="field faq-a" placeholder="Answer" value={f.a} onChange={(e) => setFaq(i, 'a', e.target.value)} />
+              <button className="mini-btn ghost" onClick={() => setFaqs(faqs.filter((_, j) => j !== i))}><Icon name="close" size={13} /></button>
+            </div>
+          ))}
+        </div>
+        <div className="set-actions">
+          <button className="gel-btn" onClick={() => setFaqs([...faqs, { q: '', a: '' }])}><Icon name="spark" size={13} /> Add question</button>
+          <button className="gel-btn gel-primary" disabled={savingF} onClick={saveFaqs}>Save FAQ</button>
+        </div>
+      </div>
+    </div>
+  );
+}

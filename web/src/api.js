@@ -71,6 +71,8 @@ export const api = {
   updateAgent: (id, body) => send(`/api/agents/${id}`, 'PATCH', body),
   deleteAgent: (id) => send(`/api/agents/${id}`, 'DELETE'),
   messageAgent: (id, text, from) => post(`/api/agents/${id}/message`, { text, from }),
+  agentConversations: (id) => get(`/api/agents/${id}/conversations`),
+  customerDetail: (id) => get(`/api/business/customers/${id}`),
 
   // business brain
   business: () => get('/api/business'),

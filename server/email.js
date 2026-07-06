@@ -77,9 +77,16 @@ function connect(host, port, secure) {
 
 const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
 
+// Platform email (admin-configured) — for 2SV / signup codes.
 export async function sendEmail({ to, subject, text }) {
   const cfg = getPlatform().channels?.email || {};
   if (!cfg.enabled) throw new Error('Email channel is turned off in the admin console.');
+  return sendVia(cfg, { to, subject, text, fromName: 'Atlas Network' });
+}
+
+// Send through any SMTP config — used so a business's agent replies from the
+// owner's own mailbox (their SMTP connector), not the platform address.
+export async function sendVia(cfg, { to, subject, text, fromName }) {
   if (!cfg.host) throw new Error('SMTP host is missing.');
   if (!cfg.from) throw new Error('"From" address is missing.');
   const port = Number(cfg.port) || 587;
@@ -121,7 +128,7 @@ export async function sendEmail({ to, subject, text }) {
     await io.cmd('DATA', 354, 'DATA');
 
     const headers = [
-      `From: Atlas Network <${cfg.from}>`,
+      `From: ${fromName || cfg.fromName || 'Atlas Agent'} <${cfg.from}>`,
       `To: <${to}>`,
       `Subject: ${subject}`,
       `Date: ${new Date().toUTCString()}`,

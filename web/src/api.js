@@ -16,6 +16,7 @@ const post = (url, body) => send(url, 'POST', body);
 export const api = {
   // auth
   register: (body) => post('/api/auth/register', body),
+  verifySignup: (body) => post('/api/auth/verify-signup', body),
   login: (body) => post('/api/auth/login', body),
   verify2sv: (body) => post('/api/auth/verify', body),
   logout: () => post('/api/auth/logout'),
@@ -42,9 +43,11 @@ export const api = {
   chat: (id, message) => post(`/api/tasks/${id}/chat`, { message }),
   remove: (id) => send(`/api/tasks/${id}`, 'DELETE'),
 
-  // ATLAS page chat
+  // ATLAS page chat + self-study
   atlasHistory: () => get('/api/atlas/chat'),
   atlasChat: (message) => post('/api/atlas/chat', { message }),
+  brain: () => get('/api/atlas/brain'),
+  teach: (topic) => post('/api/atlas/teach', { topic }),
 
   // files + shares
   files: () => get('/api/files'),
@@ -52,6 +55,23 @@ export const api = {
   shares: () => get('/api/shares'),
   share: (path) => post('/api/shares', { path }),
   revokeShare: (token) => send(`/api/shares/${token}`, 'DELETE'),
+
+  // billing
+  billing: () => get('/api/billing'),
+  checkout: (plan) => post('/api/billing/checkout', { plan }),
+  cancelPlan: () => post('/api/billing/cancel'),
+
+  // business brain
+  business: () => get('/api/business'),
+  setProfile: (body) => send('/api/business/profile', 'PATCH', body),
+  setFaqs: (faqs) => send('/api/business/faqs', 'PUT', { faqs }),
+  inbox: () => get('/api/business/inbox'),
+  conversation: (id) => get(`/api/business/inbox/${id}`),
+  incoming: (body) => post('/api/business/incoming', body),
+  replyInbox: (id, text) => post(`/api/business/inbox/${id}/reply`, { text }),
+  checkEmail: () => post('/api/business/check-email'),
+  bookings: () => get('/api/business/bookings'),
+  customers: () => get('/api/business/customers'),
 
   // projects
   projects: () => get('/api/projects'),

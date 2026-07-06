@@ -170,6 +170,18 @@ export function understand(text) {
 export const intentCount = () => model.intents.length;
 export const vocabSize = () => model.vocab.size;
 
+// Fold freshly-read words into the vocabulary so smoothing/known-word logic
+// reflects what ATLAS has learned. Returns the words that were genuinely new.
+export function learnWords(words = []) {
+  const fresh = [];
+  for (const raw of words) {
+    for (const w of tokenize(raw)) {
+      if (w.length > 2 && !model.vocab.has(w)) { model.vocab.add(w); fresh.push(w); }
+    }
+  }
+  return fresh;
+}
+
 // --- self-generated titles --------------------------------------------------
 // ATLAS names its own tasks from what it understood — never a raw slice of the
 // operator's words.
@@ -202,10 +214,15 @@ export function titleFor(u) {
 // good assistant would — and asks ONE sharp question instead of guessing.
 const BRANDS = /\b(iphone|ipad|macbook|apple|tesla|nike|adidas|google|android|samsung|galaxy|playstation|xbox|nintendo|netflix|spotify|amazon|starbucks|disney)\b/i;
 
+// App-like briefs ("a counter of how many times people push the button")
+// want a working tool, not a brand site — and no clarifying questions.
+export const APPISH = /\b(counter|clicker|click count|tally|push(es)? the button|button press|to-?do list|checklist|stopwatch|timer|countdown|calculator|guestbook|poll)\b/i;
+
 // Returns { question, options } — options render as one-tap answer buttons
 // (plus the free-text bar) in the task feed, Claude-style.
 export function needsClarification(u) {
   const src = u.raw || '';
+  if (APPISH.test(src)) return null; // the brief IS the spec — just build it
   const brand = src.match(BRANDS);
 
   // "make a website for the new iPhone release" — theirs, or the brand's?

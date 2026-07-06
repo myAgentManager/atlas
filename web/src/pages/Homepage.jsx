@@ -29,18 +29,17 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       {/* hero */}
       <header className="hero">
         <div className="hero-copy">
-          <div className="eyebrow"><Icon name="shield" size={14} /> Cloud platform · AI built from scratch</div>
+          <div className="eyebrow"><Icon name="shield" size={14} /> For business owners · by Atlas Networks</div>
           <h1 className="hero-h1">
-            Your own agent,<br />working while<br /><span className="accent">you're away.</span>
+            An AI agent<br />at the front desk<br /><span className="accent">of your business.</span>
           </h1>
           <p className="hero-sub">
-            myAgent gives you a personal AI agent in the cloud. Hand it a task in plain
-            English — websites, research, writing, busywork — and it plans it out loud,
-            does the work, and reviews it before handing it back. Private to your account,
-            organized by project.
+            myAgent answers your email, live chat, and messages, books appointments, takes
+            orders, handles FAQs, and follows up with customers — in every language, around
+            the clock. You set it up once; it runs the busywork while you run the business.
           </p>
           <div className="hero-cta">
-            <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Enter the Command Deck' : 'Create your account'}</button>
+            <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Open your Command Deck' : 'Start free'}</button>
             <a className="text-link" href="#how">See how it works <Icon name="arrow" size={15} /></a>
           </div>
         </div>

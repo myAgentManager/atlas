@@ -60,6 +60,38 @@ export const config = Object.freeze({
     from: process.env.TWILIO_FROM || '',
   },
 
+  // Stripe billing. With no secret key, billing runs in demo mode (plans switch
+  // instantly, no charge) so the whole flow is testable before you add keys.
+  stripe: {
+    secret: process.env.STRIPE_SECRET_KEY || '',
+    publishable: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    pricePro: process.env.STRIPE_PRICE_PRO || '',
+    priceBusiness: process.env.STRIPE_PRICE_BUSINESS || '',
+  },
+
+  // Subscription tiers — what each plan unlocks in the agent's tool deck.
+  plans: {
+    free: {
+      id: 'free', name: 'Starter', price: 0,
+      blurb: 'Kick the tires. One agent, the essentials.',
+      actions: 50,
+      tools: ['web_chat', 'faq', 'web_study', 'site_builder'],
+    },
+    pro: {
+      id: 'pro', name: 'Pro', price: 49,
+      blurb: 'A real front desk. Email, bookings, follow-ups.',
+      actions: 2000,
+      tools: ['web_chat', 'faq', 'web_study', 'site_builder', 'email_out', 'email_in', 'bookings', 'reminders', 'orders', 'crm'],
+    },
+    business: {
+      id: 'business', name: 'Business', price: 149,
+      blurb: 'Full takeover. Multilingual, after-hours, SMS, API.',
+      actions: 100000,
+      tools: ['web_chat', 'faq', 'web_study', 'site_builder', 'email_out', 'email_in', 'bookings', 'reminders', 'orders', 'crm', 'sms', 'multilingual', 'after_hours', 'sales', 'api', 'analytics'],
+    },
+  },
+
   dataDir,
   dataFile: path.join(dataDir, 'tasks.json'),
   usersFile: path.join(dataDir, 'users.json'),

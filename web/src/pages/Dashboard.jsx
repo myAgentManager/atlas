@@ -4,6 +4,7 @@ import { Icon } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 import Files from './Files.jsx';
 import Database from './Database.jsx';
+import { openReader } from '../reader.jsx';
 
 // The Command Deck: projects are the organizing unit. Pick one in the sidebar
 // and its workspace opens — its own tasks, files, database, and chat.
@@ -203,11 +204,11 @@ function OverviewTab({ name, card, tasks, goto }) {
           <div className="ov-feed">
             {files.length === 0 && <div className="empty">Nothing built yet — everything {name} makes lands here.</div>}
             {files.slice(0, 6).map((f) => (
-              <a key={f.path} className="ov-file" href={'/files/' + f.path} target="_blank" rel="noreferrer">
+              <button key={f.path} type="button" className="ov-file" onClick={() => openReader('/files/' + f.path)}>
                 <Icon name="file" size={13} />
                 <span className="ov-file-name">{f.path.slice(card.slug.length + 1)}</span>
                 <span className="ov-file-sub">{new Date(f.mtime).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-              </a>
+              </button>
             ))}
           </div>
           <div className="ov-actions">
@@ -610,7 +611,7 @@ function Linkified({ text }) {
     const href = trailing ? p.slice(0, -trailing.length) : p;
     return (
       <React.Fragment key={i}>
-        <a className="artifact-link" href={href} target="_blank" rel="noreferrer"><Icon name="file" size={12} /> {href.replace('/files/', '')}</a>
+        <button type="button" className="artifact-link" onClick={() => openReader(href)}><Icon name="file" size={12} /> {href.replace('/files/', '')}</button>
         {trailing}
       </React.Fragment>
     );

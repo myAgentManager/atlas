@@ -79,30 +79,45 @@ const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
 
 export async function sendEmail({ to, subject, text }) {
   const cfg = getPlatform().channels?.email || {};
-  if (!cfg.enabled || !cfg.host || !cfg.from) throw new Error('Email channel is not configured.');
+  if (!cfg.enabled) throw new Error('Email channel is turned off in the admin console.');
+  if (!cfg.host) throw new Error('SMTP host is missing.');
+  if (!cfg.from) throw new Error('"From" address is missing.');
   const port = Number(cfg.port) || 587;
-  const secure = port === 465;
+  const secure = port === 465; // implicit TLS on 465; STARTTLS otherwise
 
-  const socket = await connect(cfg.host, port, secure);
+  let socket;
+  try { socket = await connect(cfg.host, port, secure); }
+  catch (e) { throw new Error(`can't reach ${cfg.host}:${port} (${e.code || e.message}) — check host/port and that the provider allows this connection`); }
+
   const io = makeIO(socket, cfg.host);
   try {
     await io.expect(220, 'greeting');
-    let feats = await io.cmd('EHLO atlas.network', 250, 'EHLO');
 
+    // EHLO, falling back to HELO for old servers.
+    let feats;
+    try { feats = await io.cmd('EHLO atlas.network', 250, 'EHLO'); }
+    catch { feats = await io.cmd('HELO atlas.network', 250, 'HELO'); }
+
+    const isLocal = /^(127\.0\.0\.1|localhost|::1)$/.test(cfg.host);
     if (!secure && /STARTTLS/i.test(feats.text)) {
       await io.cmd('STARTTLS', 220, 'STARTTLS');
       await io.startTls();
       feats = await io.cmd('EHLO atlas.network', 250, 'EHLO/tls');
+    } else if (!secure && cfg.user && !isLocal) {
+      // Real providers require TLS before AUTH — guide the operator clearly.
+      // (Local/dev servers like MailHog are trusted and skip this.)
+      throw new Error(`${cfg.host} didn't offer STARTTLS on port ${port}; use port 465 (SSL) or 587 (STARTTLS)`);
     }
 
     if (cfg.user) {
+      if (!/AUTH[ =].*LOGIN/i.test(feats.text)) throw new Error(`${cfg.host} doesn't advertise AUTH LOGIN — check the username/password or provider docs`);
       await io.cmd('AUTH LOGIN', 334, 'AUTH');
       await io.cmd(b64(cfg.user), 334, 'AUTH user');
-      await io.cmd(b64(cfg.pass || ''), 235, 'AUTH pass');
+      await io.cmd(b64(cfg.pass || ''), 235, 'auth (bad username or password?)');
     }
 
-    await io.cmd(`MAIL FROM:<${cfg.from}>`, 250, 'MAIL FROM');
-    await io.cmd(`RCPT TO:<${to}>`, 250, 'RCPT TO');
+    await io.cmd(`MAIL FROM:<${cfg.from}>`, 250, 'MAIL FROM (is the From address allowed?)');
+    await io.cmd(`RCPT TO:<${to}>`, 250, 'RCPT TO (recipient rejected?)');
     await io.cmd('DATA', 354, 'DATA');
 
     const headers = [

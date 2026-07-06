@@ -112,6 +112,14 @@ export function createUser({ email, name, password, provider, providerId }) {
     role: usersDb.users.length === 0 ? 'owner' : 'member',
     disabled: false,
     welcomed: false,
+    // Company addresses and OAuth identities are trusted; everyone else must
+    // confirm a code emailed to them.
+    emailVerified: Boolean(provider) || email.endsWith('@atlasnetworks.com') || usersDb.users.length === 0,
+    // Atlas Networks staff (company email or first account) are founders; they
+    // reach the Operations + Strategy consoles. Everyone else is a business owner.
+    founder: email.endsWith('@atlasnetworks.com') || usersDb.users.length === 0,
+    plan: 'free',
+    subscription: { plan: 'free', status: 'active', since: Date.now(), stripeCustomer: null, stripeSub: null },
     totp: { secret: null, enabled: false, backup: [] },
     second: { method: null }, // 'totp' | 'email' | 'sms' | null
     apiKey: newApiKey(),
@@ -288,6 +296,7 @@ export function publicUser(u) {
   const method = secondMethod(u);
   return {
     id: u.id, email: u.email, name: u.name, role: u.role,
+    founder: Boolean(u.founder), plan: u.plan || 'free', subscription: u.subscription || { plan: 'free', status: 'active' },
     provider: u.provider || 'local', welcomed: u.welcomed !== false,
     twoStep: Boolean(method), twoStepMethod: method, backupCodesLeft: u.totp.backup.length,
     apiKey: u.apiKey, settings: u.settings, createdAt: u.createdAt,

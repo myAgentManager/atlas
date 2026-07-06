@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
+import { toast } from '../toast.jsx';
 import Globe from '../Globe.jsx';
 
 // The ATLAS page: the engine's face. Live internals on the left, an open
@@ -34,20 +35,53 @@ export default function Atlas({ agent, user, chat, setChat, tasks }) {
           <p className="internals-note">{engine.kind}</p>
         </div>
 
-        <div className="panel">
-          <div className="panel-title"><Icon name="bolt" size={14} /> What it does best</div>
-          <ul className="skill-list">
-            <li><Icon name="globe" size={15} /> Build one-page websites with original art &amp; palettes</li>
-            <li><Icon name="eye" size={15} /> Research the live web into cited reports</li>
-            <li><Icon name="file" size={15} /> Draft structured documents</li>
-            <li><Icon name="spark" size={15} /> Summarize &amp; organize your workspace</li>
-          </ul>
-        </div>
+        <SelfStudy engine={engine} />
       </section>
 
       <section className="col">
         <ChatPanel user={user} chat={chat} setChat={setChat} name={agent?.name || 'ATLAS'} />
       </section>
+    </div>
+  );
+}
+
+function SelfStudy({ engine }) {
+  const [brain, setBrain] = useState(engine.selfStudy || null);
+  const [topic, setTopic] = useState('');
+  const refresh = () => api.brain().then(setBrain).catch(() => {});
+  useEffect(() => { refresh(); const id = setInterval(refresh, 20000); return () => clearInterval(id); }, []);
+
+  const teach = () => {
+    const t = topic.trim();
+    if (!t) return;
+    api.teach(t).then(() => { setTopic(''); toast(`Queued — ATLAS will study “${t}”.`, 'ok'); refresh(); }).catch((e) => toast(e.message, 'err'));
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-title"><Icon name="spark" size={14} /> Self-study</div>
+      <p className="dim-note">ATLAS reads the live web on its own and grows — new vocabulary, new lessons it can recall on future tasks.</p>
+      <div className="study-stats">
+        <div className="study-stat"><b>{brain?.lessons ?? '—'}</b><span>Lessons</span></div>
+        <div className="study-stat"><b>{brain?.learnedWords ?? '—'}</b><span>Words learned</span></div>
+        <div className="study-stat"><b>{brain?.sessions ?? '—'}</b><span>Study sessions</span></div>
+        <div className="study-stat"><b>{brain?.queued ?? '—'}</b><span>Queued</span></div>
+      </div>
+      {brain?.recent?.length > 0 && (
+        <div className="study-recent">
+          <div className="study-recent-title">Recently studied</div>
+          {brain.recent.map((r) => (
+            <div key={r.topic + r.at} className="study-line"><Icon name="eye" size={12} /> {r.topic}
+              <span className="study-when">{new Date(r.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="study-teach">
+        <input className="field" placeholder="Teach ATLAS a topic to study…" value={topic}
+          onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && teach()} />
+        <button className="gel-btn gel-primary" disabled={!topic.trim()} onClick={teach}><Icon name="spark" size={14} /> Study</button>
+      </div>
     </div>
   );
 }

@@ -26,7 +26,11 @@ export default function Login({ agent, onDone, onHome }) {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        const { user } = await api.register({ email, name, password });
+        const res = await api.register({ email, name, password });
+        if (res.needVerify) { setPending(res.pending); setTwoHint(res.hint || ''); setMode('verifysignup'); }
+        else onDone(res.user);
+      } else if (mode === 'verifysignup') {
+        const { user } = await api.verifySignup({ pending, code });
         onDone(user);
       } else if (mode === 'signin') {
         const res = await api.login({ email, password });
@@ -57,7 +61,15 @@ export default function Login({ agent, onDone, onHome }) {
       </button>
 
       <form className="panel auth-card" onSubmit={submit}>
-        {mode === 'twostep' ? (
+        {mode === 'verifysignup' ? (
+          <>
+            <div className="auth-icon"><Icon name="send" size={24} /></div>
+            <h1 className="auth-h1">Verify your email</h1>
+            <p className="auth-sub">We sent a 6-digit code to <b>{twoHint}</b>. Enter it to finish creating your account.</p>
+            <input className="field code-field" autoFocus inputMode="numeric" maxLength={6}
+              placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} />
+          </>
+        ) : mode === 'twostep' ? (
           <>
             <div className="auth-icon"><Icon name="shield" size={26} /></div>
             <h1 className="auth-h1">Two-step check</h1>
@@ -99,11 +111,11 @@ export default function Login({ agent, onDone, onHome }) {
 
         <div className="auth-err">{err || (oauthFailed ? 'That sign-in didn’t complete — try again.' : '')}</div>
         <button className="gel-btn gel-primary auth-go" disabled={busy || (mode === 'signup' && !regOpen)}>
-          {mode === 'signup' ? 'Create account' : mode === 'twostep' ? 'Verify' : 'Sign in'}
+          {mode === 'signup' ? 'Create account' : mode === 'twostep' || mode === 'verifysignup' ? 'Verify' : 'Sign in'}
           <Icon name="arrow" size={15} />
         </button>
 
-        {mode !== 'twostep' && (providers.google || providers.apple) && (
+        {mode !== 'twostep' && mode !== 'verifysignup' && (providers.google || providers.apple) && (
           <div className="oauth-block">
             <div className="oauth-divider"><span>or continue with</span></div>
             <div className="oauth-row">
@@ -121,7 +133,7 @@ export default function Login({ agent, onDone, onHome }) {
           </div>
         )}
 
-        {mode !== 'twostep' && (
+        {mode !== 'twostep' && mode !== 'verifysignup' && (
           regOpen ? (
             <button type="button" className="text-link auth-switch"
               onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setErr(''); }}>

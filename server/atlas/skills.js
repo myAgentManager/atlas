@@ -76,9 +76,14 @@ export async function reviewArtifact(tools, rel) {
   if (/\.html?$/i.test(rel)) {
     push(/<title>[^<]+<\/title>/i.test(content), 'Has a page title');
     push(/viewport/i.test(content), 'Mobile viewport is set');
-    push((content.match(/<section/gi) || []).length >= 1, 'Content sections are present');
+    if (/atlas-app:/.test(content)) {
+      push(/addEventListener/.test(content), 'Interactive controls are wired up');
+      push(/localStorage/.test(content), 'State persists between visits');
+    } else {
+      push((content.match(/<section/gi) || []).length >= 1, 'Content sections are present');
+      push(/<svg/i.test(content), 'Original artwork included');
+    }
     push(/<\/html>\s*$/i.test(content), 'Document closes cleanly');
-    push(/<svg/i.test(content), 'Original artwork included');
   } else if (/\.md$/i.test(rel)) {
     push(/^#\s+.+/m.test(content), 'Has a proper heading');
     push(content.length > 300, 'Substantial content (not a stub)');
@@ -225,18 +230,171 @@ const PASS_NOTES = {
   4: 'adding a gallery of original artwork',
 };
 
+// ============================================================================
+// App mode — when the brief asks for a TOOL (counter, todo, stopwatch), the
+// page IS the tool: working vanilla JS, no marketing sections, no brand fluff.
+// ============================================================================
+function detectApp(raw) {
+  if (/\b(counter|clicker|click count|tally|push(es)? the button|button press(es)?)\b/i.test(raw)) return 'counter';
+  if (/\b(to-?do list|todo|checklist|task list)\b/i.test(raw)) return 'todo';
+  if (/\b(stopwatch|timer|countdown)\b/i.test(raw)) return 'timer';
+  return null;
+}
+
+const APP_META = {
+  counter: { title: 'The Button', blurb: 'One button. One number. Push it.' },
+  todo: { title: 'The List', blurb: 'Write it down. Check it off.' },
+  timer: { title: 'The Stopwatch', blurb: 'Start. Stop. Reset. Simple.' },
+};
+
+function appWidget(appType) {
+  if (appType === 'counter') {
+    return {
+      html: `
+  <div class="tool">
+    <div class="count" id="count">0</div>
+    <button class="push" id="push">PUSH</button>
+    <div class="toolbar"><span id="msg">Every push counts.</span><button class="ghost" id="reset">reset</button></div>
+  </div>`,
+      js: `
+  var KEY='atlas-counter';
+  var count=Number(localStorage.getItem(KEY)||0);
+  var el=document.getElementById('count'), btn=document.getElementById('push'), msg=document.getElementById('msg');
+  function draw(){ el.textContent=count.toLocaleString(); }
+  draw();
+  btn.addEventListener('click', function(){
+    count++; localStorage.setItem(KEY,count); draw();
+    btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+    var milestones={10:'Double digits!',50:'Fifty. Respect.',100:'ONE HUNDRED.',500:'You may need a hobby.',1000:'Legend status.'};
+    if(milestones[count]) msg.textContent=milestones[count];
+  });
+  document.getElementById('reset').addEventListener('click', function(){
+    if(confirm('Reset the count to zero?')){ count=0; localStorage.setItem(KEY,0); draw(); msg.textContent='Fresh start.'; }
+  });`,
+    };
+  }
+  if (appType === 'todo') {
+    return {
+      html: `
+  <div class="tool">
+    <div class="row"><input id="what" placeholder="What needs doing?" autocomplete="off"><button class="push sm" id="add">Add</button></div>
+    <ul id="list" class="todos"></ul>
+  </div>`,
+      js: `
+  var KEY='atlas-todos';
+  var items=JSON.parse(localStorage.getItem(KEY)||'[]');
+  var list=document.getElementById('list'), input=document.getElementById('what');
+  function save(){ localStorage.setItem(KEY, JSON.stringify(items)); }
+  function draw(){
+    list.innerHTML='';
+    items.forEach(function(it,i){
+      var li=document.createElement('li'); if(it.done) li.className='done';
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=it.done;
+      cb.addEventListener('change',function(){ items[i].done=cb.checked; save(); draw(); });
+      var span=document.createElement('span'); span.textContent=it.text;
+      var del=document.createElement('button'); del.className='ghost'; del.textContent='✕';
+      del.addEventListener('click',function(){ items.splice(i,1); save(); draw(); });
+      li.appendChild(cb); li.appendChild(span); li.appendChild(del); list.appendChild(li);
+    });
+  }
+  function add(){ var t=input.value.trim(); if(!t) return; items.push({text:t,done:false}); input.value=''; save(); draw(); }
+  document.getElementById('add').addEventListener('click', add);
+  input.addEventListener('keydown', function(e){ if(e.key==='Enter') add(); });
+  draw();`,
+    };
+  }
+  // timer / stopwatch
+  return {
+    html: `
+  <div class="tool">
+    <div class="count" id="clock">0:00.0</div>
+    <div class="row center">
+      <button class="push sm" id="startstop">Start</button>
+      <button class="ghost" id="reset">Reset</button>
+    </div>
+  </div>`,
+    js: `
+  var t0=null, acc=0, tick=null;
+  var clock=document.getElementById('clock'), ss=document.getElementById('startstop');
+  function fmt(ms){ var s=ms/1000, m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0')+'.'+Math.floor((ms%1000)/100); }
+  function draw(){ clock.textContent=fmt(acc+(t0?Date.now()-t0:0)); }
+  ss.addEventListener('click', function(){
+    if(t0){ acc+=Date.now()-t0; t0=null; clearInterval(tick); ss.textContent='Start'; }
+    else { t0=Date.now(); tick=setInterval(draw,100); ss.textContent='Stop'; }
+    draw();
+  });
+  document.getElementById('reset').addEventListener('click', function(){ t0=null; acc=0; clearInterval(tick); ss.textContent='Start'; draw(); });
+  draw();`,
+  };
+}
+
+function buildAppHtml({ appType, topic, pal, version }) {
+  const meta = APP_META[appType];
+  const w = appWidget(appType);
+  return `<!doctype html>
+<!-- atlas-pass:${version} -->
+<!-- atlas-app:${appType} -->
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(topic || meta.title)}</title>
+<style>
+  :root{--bg:${pal.bg};--panel:${pal.panel};--ink:${pal.ink};--dim:${pal.dim};--accent:${pal.accent};--accent2:${pal.accent2}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px;text-align:center}
+  h1{font-size:clamp(28px,6vw,44px);letter-spacing:-1px}
+  .blurb{color:var(--dim);font-size:16px}
+  .tool{background:var(--panel);border:1px solid color-mix(in srgb,var(--ink) 10%,transparent);border-radius:20px;
+    padding:34px;min-width:min(420px,92vw);box-shadow:0 24px 60px rgba(0,0,0,.35), inset 0 1px 0 color-mix(in srgb,var(--ink) 14%,transparent)}
+  .count{font-size:clamp(48px,12vw,84px);font-weight:800;font-variant-numeric:tabular-nums;margin-bottom:22px;
+    color:var(--accent);text-shadow:0 0 30px color-mix(in srgb,var(--accent) 45%,transparent)}
+  .push{font-size:22px;font-weight:800;letter-spacing:1px;padding:20px 54px;border:none;border-radius:60px;cursor:pointer;
+    color:${'#fff'};background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 70%,white) 0%,var(--accent) 45%,var(--accent2) 55%,var(--accent) 100%);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.6), inset 0 -4px 8px rgba(0,0,0,.35), 0 10px 26px color-mix(in srgb,var(--accent) 45%,transparent);
+    transition:transform .06s ease}
+  .push:active{transform:translateY(3px)}
+  .push.pop{animation:pop .18s ease}
+  @keyframes pop{40%{transform:scale(1.07)}}
+  .push.sm{font-size:15px;padding:12px 26px}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-top:22px;color:var(--dim);font-size:13px}
+  .ghost{background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px;text-decoration:underline}
+  .row{display:flex;gap:10px}.row.center{justify-content:center}
+  input{flex:1;padding:13px 15px;border-radius:12px;border:1px solid color-mix(in srgb,var(--ink) 15%,transparent);
+    background:var(--bg);color:var(--ink);font-size:15px}
+  .todos{list-style:none;margin-top:18px;text-align:left}
+  .todos li{display:flex;align-items:center;gap:10px;padding:11px 6px;border-bottom:1px solid color-mix(in srgb,var(--ink) 8%,transparent)}
+  .todos li span{flex:1}
+  .todos li.done span{text-decoration:line-through;color:var(--dim)}
+  footer{color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+  <div><h1>${esc(topic || meta.title)}</h1><p class="blurb">${esc(meta.blurb)}</p></div>
+${w.html}
+  <footer>Built by ATLAS · pass ${version}</footer>
+<script>
+${w.js}
+</script>
+</body>
+</html>`;
+}
+
 export async function buildWebsite({ understanding, tools, io, project = 'general', target = null }) {
   const { entities, raw } = understanding;
   let topic = entities.topic || keywords(raw, 2).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') || 'My Project';
   const rel = target || `${project}/site/index.html`;
+  let appType = detectApp(raw);
 
   // Improvement pass? Read the current version and step the ladder.
   let version = 1;
   if (await tools.exists(rel)) {
     const current = await tools.read(rel);
-    // Keep the site's identity: on refinement the existing title IS the topic.
+    // Keep the site's identity: on refinement the existing title IS the topic,
+    // and an app page stays an app page.
     const existingTitle = current.match(/<title>([^<]+)<\/title>/i)?.[1]?.trim();
     if (existingTitle) topic = existingTitle;
+    appType = current.match(/atlas-app:(\w+)/)?.[1] || appType;
     version = (Number(current.match(/atlas-pass:(\d+)/)?.[1]) || 1) + 1;
     const archived = `${project}/site/history/v${version - 1}.html`;
     io.think(`The site already exists (pass ${version - 1}). This is an improvement pass — ${PASS_NOTES[version] || 'polishing copy and structure'}.`);
@@ -246,10 +404,28 @@ export async function buildWebsite({ understanding, tools, io, project = 'genera
 
   const pal = palette(topic);
   const tone = entities.tone;
-  if (version === 1) io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
 
   for (const msg of io.inbox()) io.think(`Noted your message: “${msg}” — factoring it in.`);
 
+  // --- app mode: the page IS a working tool -------------------------------
+  if (appType) {
+    const appTitle = APP_META[appType].title;
+    const toolTopic = entities.topic && !/counter|clicker|tally|todo|timer|stopwatch/i.test(entities.topic)
+      ? entities.topic : appTitle;
+    if (version === 1) io.think(`This brief wants a working ${appType} — building the tool itself, not a brochure.`);
+    io.act(version === 1 ? `Wiring up the ${appType} logic (vanilla JS, saves locally)` : `Polishing the ${appType} (pass ${version})`);
+    const html = buildAppHtml({ appType, topic: toolTopic, pal, version });
+    io.act(`Writing ${rel}`);
+    await tools.write(rel, html);
+    return {
+      summary: version === 1
+        ? `Built a working ${appType} — push it, it counts. View it at /files/${rel}`
+        : `Polished the ${appType} (pass ${version}). View it at /files/${rel}`,
+      artifact: rel,
+    };
+  }
+
+  if (version === 1) io.think(`Designing a one-page site for “${topic}” — ${pal.name} palette, ${tone} voice.`);
   io.act(version === 1
     ? `Composing copy: headline, sections${entities.wantsDates ? ', dates' : ''}${entities.wantsSignup ? ', signup' : ''}`
     : `Rebuilding with pass-${version} upgrades on top of the existing structure`);

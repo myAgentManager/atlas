@@ -10,6 +10,7 @@ import * as store from './store.js';
 import { stopTask, isRunning } from './agent.js';
 import { engineInfo } from './atlas/core.js';
 import { getPlatform, setPlatform } from './platform.js';
+import { sendEmail } from './email.js';
 
 const adminSessions = new Map(); // token -> exp
 const SESSION_MS = 12 * 3600_000;
@@ -132,6 +133,20 @@ export function startAdmin({ enqueue }) {
     const p = setPlatform(req.body || {});
     auth.audit('admin', 'platform settings updated');
     res.json(p);
+  });
+
+  // Send a real test email so you can see the exact SMTP result immediately.
+  app.post('/api/test-email', guard, async (req, res) => {
+    const to = String(req.body?.to || '').trim();
+    if (!to) return res.status(400).json({ error: 'Enter a destination address.' });
+    try {
+      await sendEmail({ to, subject: 'Atlas Network SMTP test', text: 'This is a test email from your Atlas Network admin console. If you can read this, SMTP is working.' });
+      auth.audit('admin', `test email sent to ${to}`);
+      res.json({ ok: true });
+    } catch (e) {
+      auth.audit('admin', `test email failed: ${e.message}`);
+      res.status(502).json({ error: e.message });
+    }
   });
 
   app.get('/api/log', guard, (_req, res) => res.json(auth.auditLog().slice(-120).reverse()));
@@ -261,6 +276,9 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
     <div class="two"><label>Username <input id="em_user" placeholder="apikey"></label>
     <label>From address <input id="em_from" placeholder="atlas@yourdomain.com"></label></div>
     <label>Password <input id="em_pass" type="password" placeholder="••••"></label>
+    <div class="two"><label>Send a test to <input id="em_test" placeholder="you@example.com"></label>
+    <div style="display:flex;align-items:flex-end"><button class="btn" onclick="testEmail()" type="button">Send test email</button></div></div>
+    <div class="hint" id="em_result"></div>
   </div>
   <div class="prov">
     <div class="prov-head"><b>Two-step verification methods</b></div>
@@ -334,6 +352,16 @@ async function savePlatform(){
   const r=await fetch(BASE+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(r.status===401)return location.reload();
   $('#p_flash').textContent='Saved.';setTimeout(()=>$('#p_flash').textContent='',2500);
+}
+async function testEmail(){
+  var to=$('#em_test').value.trim(); var out=$('#em_result');
+  if(!to){out.textContent='Enter an address first.';out.style.color='var(--amber)';return;}
+  out.style.color='var(--dim)';out.textContent='Saving settings and sending…';
+  await saveChannels();
+  var r=await fetch(BASE+'/api/test-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:to})});
+  var d=await r.json().catch(function(){return {};});
+  if(r.ok){out.style.color='var(--green)';out.textContent='✓ Sent to '+to+'. Check the inbox (and spam).';}
+  else{out.style.color='var(--red)';out.textContent='✗ '+(d.error||'Failed');}
 }
 refresh();loadPlatform();setInterval(refresh,5000);
 </script></body></html>`;

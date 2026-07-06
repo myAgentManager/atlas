@@ -11,6 +11,10 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import { runTask, stopTask, isRunning, taskChat, atlasChat } from './agent.js';
 import { engineInfo, converse } from './atlas/core.js';
+import { study, brainStats, enqueueTopic } from './atlas/learn.js';
+import * as billing from './billing.js';
+import * as biz from './business.js';
+import { fetchRecent } from './imap.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
 import { understand, titleFor } from './atlas/nlu.js';
 import { slugify } from './atlas/skills.js';
@@ -68,15 +72,45 @@ mountOAuth(app, { urlencoded: express.urlencoded({ extended: false }) });
 // ============================================================================
 // auth
 // ============================================================================
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   if (!getPlatform().registrationOpen) return bad(res, 403, 'Registration is currently closed on this server.');
   const key = `reg:${req.ip}`;
   if (!auth.rateCheck(key, 10, 30 * 60_000)) return bad(res, 429, 'Too many signups from this address — try later.');
+  let user;
   try {
-    const user = auth.createUser(req.body || {});
-    auth.setCookie(res, 'ma_sess', auth.createSession(user.id), { secure: req.secure });
-    res.status(201).json({ user: auth.publicUser(user) });
-  } catch (e) { auth.rateFail(key, 10, 30 * 60_000); bad(res, 400, e.message); }
+    user = auth.createUser(req.body || {});
+  } catch (e) { auth.rateFail(key, 10, 30 * 60_000); return bad(res, 400, e.message); }
+
+  // Company addresses skip verification; everyone else confirms an emailed code
+  // (as long as the email channel is configured — otherwise we can't send).
+  if (!user.emailVerified && channelStatus().email) {
+    const code = auth.genCode();
+    try {
+      await sendEmail({ to: user.email, subject: 'Verify your Atlas Network account', text: `Welcome to the Atlas Network.\n\nYour verification code is: ${code}\n\nEnter it to finish creating your account. It expires in 10 minutes.` });
+    } catch (e) {
+      auth.audit('auth', `signup verify send failed for ${user.email}: ${e.message}`);
+      auth.deleteUser(user.id); // roll back the half-made account
+      return bad(res, 502, 'Could not send your verification email — check the address, or contact the administrator.');
+    }
+    return res.status(202).json({ needVerify: true, hint: auth.maskDest(user.email), pending: auth.createPending(user.id, { method: 'signup', code }) });
+  }
+
+  auth.setCookie(res, 'ma_sess', auth.createSession(user.id), { secure: req.secure });
+  res.status(201).json({ user: auth.publicUser(user) });
+});
+
+// Confirm the signup code → verify + sign in.
+app.post('/api/auth/verify-signup', (req, res) => {
+  const key = `sv:${req.ip}`;
+  if (!auth.rateCheck(key)) return bad(res, 429, 'Too many attempts — try again later.');
+  const p = auth.takePending(req.body?.pending);
+  if (!p || p.method !== 'signup') return bad(res, 400, 'That code expired — sign up again.');
+  if (!auth.codeMatches(req.body?.code, p.code)) { auth.rateFail(key); return bad(res, 401, 'That code didn\'t match. Check your email and try again.'); }
+  auth.rateClear(key);
+  auth.updateUser(p.user.id, (u) => { u.emailVerified = true; });
+  auth.setCookie(res, 'ma_sess', auth.createSession(p.user.id), { secure: req.secure });
+  auth.audit('auth', `email verified + signed up: ${p.user.email}`);
+  res.json({ user: auth.publicUser(auth.getUser(p.user.id)) });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -169,6 +203,7 @@ app.patch('/api/me', auth.requireAuth, (req, res) => {
         ...(typeof settings.notifySms === 'boolean' ? { notifySms: settings.notifySms } : {}),
         ...(typeof settings.callMe === 'string' ? { callMe: settings.callMe.trim().slice(0, 30) } : {}),
         ...(['auto', 'bold', 'calm', 'warm'].includes(settings.tone) ? { tone: settings.tone } : {}),
+        ...(settings.imap ? { imap: { ...(u.settings.imap || {}), ...settings.imap } } : {}),
         integrations: { ...u.settings.integrations, ...(settings.integrations || {}) },
       };
     }
@@ -248,6 +283,7 @@ app.delete('/api/me', auth.requireAuth, async (req, res) => {
   for (const t of store.listTasks(req.user.id)) { stopTask(t.id); store.deleteTask(t.id); }
   shares.revokeAllForUser(req.user.id);
   adb.removeAllForUser(req.user.id);
+  biz.removeAllForUser(req.user.id);
   await forUser(req.user.id).removeAll().catch(() => {}); // wipe their workspace: privacy
   auth.deleteUser(req.user.id);
   auth.clearCookie(res, 'ma_sess');
@@ -317,6 +353,101 @@ app.post('/api/tasks/:id/chat', auth.requireAuth, ownTask, (req, res) => {
   if (!message) return bad(res, 400, 'message required');
   if (taskChat(req.task.id, message)) enqueue(req.task.id); // clarification answered → go
   res.json({ ok: true });
+});
+
+// ============================================================================
+// Billing — subscriptions (Stripe-ready, demo mode without keys)
+// ============================================================================
+app.get('/api/billing', auth.requireAuth, (req, res) => {
+  res.json({ ...billing.billingState(req.user), plans: billing.plans() });
+});
+app.post('/api/billing/checkout', auth.requireAuth, async (req, res) => {
+  try {
+    const out = await billing.startCheckout(req.user, req.body?.plan, getPlatform().baseUrl);
+    res.json(out);
+  } catch (e) { bad(res, 400, e.message); }
+});
+app.post('/api/billing/cancel', auth.requireAuth, async (req, res) => {
+  await billing.cancel(req.user);
+  res.json({ user: auth.publicUser(auth.getUser(req.user.id)) });
+});
+app.post('/api/billing/webhook', express.raw({ type: '*/*' }), (req, res) => {
+  try { billing.handleWebhook(JSON.parse(req.body.toString('utf8'))); } catch {}
+  res.json({ received: true });
+});
+
+// ============================================================================
+// Business Brain — the agent's front desk (profile, FAQ, CRM, bookings, inbox)
+// ============================================================================
+app.get('/api/business', auth.requireAuth, (req, res) => {
+  const b = biz.getBusiness(req.user.id);
+  res.json({ profile: b.profile, faqs: b.faqs, stats: biz.bizStats(req.user.id) });
+});
+app.patch('/api/business/profile', auth.requireAuth, (req, res) => res.json(biz.setProfile(req.user.id, req.body || {})));
+app.put('/api/business/faqs', auth.requireAuth, (req, res) => res.json(biz.setFaqs(req.user.id, req.body?.faqs)));
+
+app.get('/api/business/customers', auth.requireAuth, (req, res) => res.json(biz.listCustomers(req.user.id)));
+app.get('/api/business/bookings', auth.requireAuth, (req, res) => res.json(biz.listBookings(req.user.id)));
+
+app.get('/api/business/inbox', auth.requireAuth, (req, res) => res.json(biz.listInbox(req.user.id)));
+app.get('/api/business/inbox/:id', auth.requireAuth, (req, res) => {
+  const c = biz.getConversation(req.user.id, req.params.id);
+  return c ? res.json(c) : bad(res, 404, 'not found');
+});
+
+// A customer message arrives (web chat widget, simulated email, SMS). The agent
+// drafts a front-desk reply from the Business Brain and can auto-book/CRM.
+app.post('/api/business/incoming', auth.requireAuth, (req, res) => {
+  const { channel = 'chat', from = 'Guest', subject, text } = req.body || {};
+  if (!text || !text.trim()) return bad(res, 400, 'text required');
+  const customer = biz.upsertCustomer(req.user.id, { name: from, email: channel === 'email' ? from : '' });
+  const convo = biz.openConversation(req.user.id, { channel, customer: customer.name, subject: subject || text.slice(0, 40) });
+  biz.addMessage(req.user.id, convo.id, 'customer', text);
+  const reply = biz.draftReply(req.user.id, text);
+  biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
+  if (reply.intent === 'booking') biz.addBooking(req.user.id, { customer: customer.name, service: 'Appointment', when: 'to confirm', notes: text.slice(0, 120) });
+  res.json({ conversation: biz.getConversation(req.user.id, convo.id), reply });
+});
+
+// Owner (or the agent) sends a reply on a conversation; email channel goes out
+// via SMTP if the owner configured their mailbox.
+app.post('/api/business/inbox/:id/reply', auth.requireAuth, async (req, res) => {
+  const c = biz.getConversation(req.user.id, req.params.id);
+  if (!c) return bad(res, 404, 'not found');
+  const text = String(req.body?.text || '').trim();
+  if (!text) return bad(res, 400, 'text required');
+  biz.addMessage(req.user.id, c.id, 'agent', text);
+  res.json({ ok: true, conversation: biz.getConversation(req.user.id, c.id) });
+});
+
+// Pull new mail from the owner's IMAP inbox → conversations + drafted replies.
+app.post('/api/business/check-email', auth.requireAuth, async (req, res) => {
+  if (!billing.entitled(req.user, 'email_in')) return bad(res, 402, 'Receiving email is a Pro feature — upgrade to unlock it.');
+  const cfg = req.user.settings?.imap;
+  if (!cfg?.host) return bad(res, 400, 'Add your mailbox under Settings → Email to let the agent read it.');
+  try {
+    const msgs = await fetchRecent(cfg, 8);
+    let added = 0;
+    for (const m of msgs) {
+      const convo = biz.openConversation(req.user.id, { channel: 'email', customer: m.from || 'Sender', subject: m.subject });
+      biz.addMessage(req.user.id, convo.id, 'customer', m.text || '(no text)');
+      const reply = biz.draftReply(req.user.id, `${m.subject} ${m.text}`);
+      biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
+      added++;
+    }
+    res.json({ ok: true, pulled: added });
+  } catch (e) { bad(res, 502, e.message); }
+});
+
+// ============================================================================
+// ATLAS self-study — the engine growing on its own
+// ============================================================================
+app.get('/api/atlas/brain', auth.requireAuth, (_req, res) => res.json(brainStats()));
+app.post('/api/atlas/teach', auth.requireAuth, (req, res) => {
+  const topic = String(req.body?.topic || '').trim();
+  if (!topic) return bad(res, 400, 'topic required');
+  enqueueTopic(topic);
+  res.json({ ok: true, queued: brainStats().queued });
 });
 
 // ============================================================================
@@ -602,6 +733,23 @@ setInterval(() => {
 }, 15_000);
 
 // ============================================================================
+// Self-study loop: ATLAS reads the web and gets smarter while idle. Interval is
+// in minutes (MYAGENT_STUDY_MINUTES, default 45; set 0 to disable). First run
+// shortly after boot so it's visibly learning.
+const STUDY_MIN = Number(process.env.MYAGENT_STUDY_MINUTES ?? 45);
+let studying = false;
+async function studyTick() {
+  if (studying || STUDY_MIN <= 0) return;
+  studying = true;
+  try { await study(forUser('_atlas'), (m) => auth.audit('study', m)); }
+  catch (e) { auth.audit('study', `session failed: ${e.message}`); }
+  finally { studying = false; }
+}
+if (STUDY_MIN > 0) {
+  setTimeout(studyTick, 30_000);
+  setInterval(studyTick, STUDY_MIN * 60_000);
+}
+
 app.listen(config.port, () => {
   const e = engineInfo();
   console.log(`\n  ${config.agentName} online — myAgent on http://localhost:${config.port}`);

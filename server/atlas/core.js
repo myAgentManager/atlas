@@ -6,9 +6,23 @@ import { Index, summarize } from './knowledge.js';
 import { SKILLS, PLANS, reviewArtifact, slugify } from './skills.js';
 import { forUser } from '../tools.js';
 import { config } from '../config.js';
+import { recall, brainStats } from './learn.js';
+import { getDoc, saveDoc } from '../db.js';
 
-// Long-term memory: everything ATLAS produces gets indexed for later recall.
+// Long-term memory: everything ATLAS produces or studies gets indexed for
+// recall — and persisted, so ATLAS keeps growing across restarts.
 const memory = new Index();
+const saved = getDoc('memory', { docs: [], lastStudy: null });
+for (const d of saved.docs || []) memory.add(d.id, d.text, d.meta || {});
+
+export function remember(id, text, meta = {}) {
+  memory.add(id, text, meta);
+  saved.docs.push({ id, text: String(text).slice(0, 4000), meta });
+  if (saved.docs.length > 400) saved.docs.splice(0, saved.docs.length - 400);
+  saveDoc('memory', saved);
+}
+export function getLastStudy() { return saved.lastStudy; }
+export function setLastStudy(entry) { saved.lastStudy = entry; saveDoc('memory', saved); }
 
 export function engineInfo() {
   return {
@@ -19,6 +33,7 @@ export function engineInfo() {
     vocab: vocabSize(),
     skills: Object.keys(SKILLS).filter((s) => s !== 'generic_task').length,
     memories: memory.size,
+    selfStudy: brainStats(),
     selfContained: true,
   };
 }
@@ -95,13 +110,20 @@ export async function execute(task, io, prefs = {}) {
   const steps = PLANS[routedSkill] || PLANS.generic_task;
   io.event('plan', `Project: ${project}\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`);
 
+  // Bring in anything ATLAS has taught itself that's relevant.
+  const lessons = recall(`${understanding.entities.topic || ''} ${task.prompt}`, 2);
+  if (lessons.length && routedSkill !== 'build_website') {
+    io.event('thought', `Recalling ${lessons.length} thing${lessons.length > 1 ? 's' : ''} I studied earlier about this.`);
+  }
+
   const skillIo = {
     think: (t) => io.event('thought', t),
     act: (t, meta) => io.event('tool', t, meta),
     inbox: io.inbox,
+    lessons,
   };
 
-  const result = await finalSkill({ understanding, tools, io: skillIo, project, target: task.target || null });
+  const result = await finalSkill({ understanding, tools, io: skillIo, project, target: task.target || null, lessons });
 
   // Go over it: re-open the artifact and run the quality checklist.
   if (result?.artifact) {

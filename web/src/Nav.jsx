@@ -8,6 +8,7 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
   const tabs = [
     ['deck', 'Command Deck', 'bolt'],
     ['atlas', 'ATLAS', 'brain'],
+    ['billing', 'Plans', 'spark'],
     ['settings', 'Settings', 'gear'],
   ];
   return (

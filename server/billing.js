@@ -5,14 +5,31 @@
 import { config } from './config.js';
 import { getUser, updateUser, publicUser, audit } from './auth.js';
 
+import { CAPABILITIES } from './catalog.js';
+
 export const billingLive = () => Boolean(config.stripe.secret);
-export const plans = () => Object.values(config.plans);
+export const plans = () => Object.values(config.plans).map((p) => ({ ...p, capabilities: capsForPlan(p) }));
 export function planFor(user) {
   return config.plans[user?.subscription?.plan || user?.plan || 'free'] || config.plans.free;
 }
-// Does this account's plan include a given tool?
-export function entitled(user, tool) {
-  return planFor(user).tools.includes(tool);
+
+// The full capability set a plan unlocks: base + anything whose tier the plan includes.
+export function capsForPlan(plan) {
+  const caps = new Set(plan.base || []);
+  for (const c of Object.values(CAPABILITIES)) {
+    if (!c.tier || (plan.tiers || []).includes(c.tier)) caps.add(c.id);
+  }
+  return [...caps];
+}
+// Does this account's plan include a given capability?
+export function entitled(user, capability) {
+  return capsForPlan(planFor(user)).includes(capability);
+}
+// Intro pricing: 60% off the first N months.
+export function introPrice(price) {
+  const d = config.introDiscount;
+  if (!price || !d) return price;
+  return Math.round(price * (1 - d.percent / 100));
 }
 
 async function stripe(path, method = 'POST', form = null) {
@@ -42,8 +59,9 @@ export async function startCheckout(user, planId, baseUrl) {
     return { url: `${baseUrl}/?billing=success&demo=1`, demo: true };
   }
 
-  const price = planId === 'business' ? config.stripe.priceBusiness : config.stripe.pricePro;
-  if (!price) throw new Error(`No Stripe price configured for ${planId}.`);
+  const priceMap = { starter: config.stripe.priceStarter, pro: config.stripe.pricePro, growth: config.stripe.priceGrowth };
+  const price = priceMap[planId];
+  if (!price) throw new Error(`No Stripe price configured for ${planId}. Add STRIPE_PRICE_${planId.toUpperCase()}.`);
 
   let customer = user.subscription?.stripeCustomer;
   if (!customer) {
@@ -101,7 +119,8 @@ export function billingState(user) {
     plan: plan.id, planName: plan.name,
     status: user.subscription?.status || 'active',
     since: user.subscription?.since || user.createdAt,
-    tools: plan.tools,
-    actionLimit: plan.actions,
+    agents: plan.agents,
+    capabilities: capsForPlan(plan),
+    intro: config.introDiscount,
   };
 }

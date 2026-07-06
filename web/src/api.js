@@ -61,6 +61,17 @@ export const api = {
   checkout: (plan) => post('/api/billing/checkout', { plan }),
   cancelPlan: () => post('/api/billing/cancel'),
 
+  // catalog + connectors + agents (the B2B platform)
+  catalog: () => get('/api/catalog'),
+  connectors: () => get('/api/connectors'),
+  saveConnector: (id, fields) => send(`/api/connectors/${id}`, 'PUT', fields),
+  clearConnector: (id) => send(`/api/connectors/${id}`, 'DELETE'),
+  agents: () => get('/api/agents'),
+  createAgent: (body) => post('/api/agents', body),
+  updateAgent: (id, body) => send(`/api/agents/${id}`, 'PATCH', body),
+  deleteAgent: (id) => send(`/api/agents/${id}`, 'DELETE'),
+  messageAgent: (id, text, from) => post(`/api/agents/${id}/message`, { text, from }),
+
   // business brain
   business: () => get('/api/business'),
   setProfile: (body) => send('/api/business/profile', 'PATCH', body),

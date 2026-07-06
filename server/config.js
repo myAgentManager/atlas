@@ -66,29 +66,38 @@ export const config = Object.freeze({
     secret: process.env.STRIPE_SECRET_KEY || '',
     publishable: process.env.STRIPE_PUBLISHABLE_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    priceStarter: process.env.STRIPE_PRICE_STARTER || '',
     pricePro: process.env.STRIPE_PRICE_PRO || '',
-    priceBusiness: process.env.STRIPE_PRICE_BUSINESS || '',
+    priceGrowth: process.env.STRIPE_PRICE_GROWTH || '',
   },
 
-  // Subscription tiers — what each plan unlocks in the agent's tool deck.
+  // Subscription tiers — priced by how many AI agents a business can run, and
+  // which capability tiers those agents unlock. 60% off the first 2 months.
+  introDiscount: { percent: 60, months: 2 },
   plans: {
     free: {
-      id: 'free', name: 'Starter', price: 0,
-      blurb: 'Kick the tires. One agent, the essentials.',
-      actions: 50,
-      tools: ['web_chat', 'faq', 'web_study', 'site_builder'],
+      id: 'free', name: 'Trial', price: 0, agents: 1,
+      blurb: 'Build one agent free and watch it work.',
+      base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
+      tiers: [],
+    },
+    starter: {
+      id: 'starter', name: 'Starter', price: 49, agents: 2,
+      blurb: 'Two agents on the front desk — email, chat, bookings.',
+      base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
+      tiers: [],
     },
     pro: {
-      id: 'pro', name: 'Pro', price: 49,
-      blurb: 'A real front desk. Email, bookings, follow-ups.',
-      actions: 2000,
-      tools: ['web_chat', 'faq', 'web_study', 'site_builder', 'email_out', 'email_in', 'bookings', 'reminders', 'orders', 'crm'],
+      id: 'pro', name: 'Pro', price: 99, agents: 5,
+      blurb: 'Five agents plus SMS, many languages, after-hours.',
+      base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
+      tiers: ['pro'],
     },
-    business: {
-      id: 'business', name: 'Business', price: 149,
-      blurb: 'Full takeover. Multilingual, after-hours, SMS, API.',
-      actions: 100000,
-      tools: ['web_chat', 'faq', 'web_study', 'site_builder', 'email_out', 'email_in', 'bookings', 'reminders', 'orders', 'crm', 'sms', 'multilingual', 'after_hours', 'sales', 'api', 'analytics'],
+    growth: {
+      id: 'growth', name: 'Growth', price: 199, agents: 25,
+      blurb: 'A whole team of agents — phone calls, API, analytics.',
+      base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
+      tiers: ['pro', 'growth'],
     },
   },
 

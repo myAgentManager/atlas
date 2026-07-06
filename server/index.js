@@ -14,6 +14,9 @@ import { engineInfo, converse } from './atlas/core.js';
 import { study, brainStats, enqueueTopic } from './atlas/learn.js';
 import * as billing from './billing.js';
 import * as biz from './business.js';
+import * as agents from './agents.js';
+import * as connectors from './connectors.js';
+import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { fetchRecent } from './imap.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
 import { understand, titleFor } from './atlas/nlu.js';
@@ -284,6 +287,8 @@ app.delete('/api/me', auth.requireAuth, async (req, res) => {
   shares.revokeAllForUser(req.user.id);
   adb.removeAllForUser(req.user.id);
   biz.removeAllForUser(req.user.id);
+  agents.removeAllForUser(req.user.id);
+  connectors.removeAllForUser(req.user.id);
   await forUser(req.user.id).removeAll().catch(() => {}); // wipe their workspace: privacy
   auth.deleteUser(req.user.id);
   auth.clearCookie(res, 'ma_sess');
@@ -374,6 +379,68 @@ app.post('/api/billing/cancel', auth.requireAuth, async (req, res) => {
 app.post('/api/billing/webhook', express.raw({ type: '*/*' }), (req, res) => {
   try { billing.handleWebhook(JSON.parse(req.body.toString('utf8'))); } catch {}
   res.json({ received: true });
+});
+
+// ============================================================================
+// Catalog — the connectors + capabilities the UI renders
+// ============================================================================
+app.get('/api/catalog', auth.requireAuth, (_req, res) => res.json({ connectors: CONNECTORS, capabilities: CAPABILITIES }));
+
+// ============================================================================
+// Integration tools (connectors) — a business plugs in its own services
+// ============================================================================
+app.get('/api/connectors', auth.requireAuth, (req, res) => res.json(connectors.publicConnectors(req.user.id)));
+app.put('/api/connectors/:id', auth.requireAuth, (req, res) => {
+  try {
+    // Drop masked placeholder values so we don't overwrite real secrets with dots.
+    const fields = Object.fromEntries(Object.entries(req.body || {}).filter(([, v]) => v !== '••••••••'));
+    const connected = connectors.saveConnector(req.user.id, req.params.id, fields);
+    // Email connectors also power the account mailbox the agent reads.
+    if (req.params.id === 'imap') auth.updateUser(req.user.id, (u) => { u.settings.imap = connectors.getConnectorConfig(req.user.id, 'imap'); });
+    res.json({ id: req.params.id, connected });
+  } catch (e) { bad(res, 400, e.message); }
+});
+app.delete('/api/connectors/:id', auth.requireAuth, (req, res) => { connectors.clearConnector(req.user.id, req.params.id); res.json({ ok: true }); });
+
+// ============================================================================
+// Agents — a business builds & runs its own AI agents
+// ============================================================================
+app.get('/api/agents', auth.requireAuth, (req, res) => {
+  const plan = billing.planFor(req.user);
+  res.json({ agents: agents.listAgents(req.user.id), limit: plan.agents, used: agents.countAgents(req.user.id) });
+});
+app.post('/api/agents', auth.requireAuth, (req, res) => {
+  const plan = billing.planFor(req.user);
+  if (agents.countAgents(req.user.id) >= plan.agents) {
+    return bad(res, 402, `Your ${plan.name} plan includes ${plan.agents} agent${plan.agents !== 1 ? 's' : ''}. Upgrade to add more.`);
+  }
+  // Only allow capabilities the plan entitles.
+  const caps = (req.body?.capabilities || []).filter((c) => billing.entitled(req.user, c));
+  res.status(201).json(agents.createAgent(req.user.id, { ...req.body, capabilities: caps }));
+});
+app.patch('/api/agents/:id', auth.requireAuth, (req, res) => {
+  if (Array.isArray(req.body?.capabilities)) req.body.capabilities = req.body.capabilities.filter((c) => billing.entitled(req.user, c));
+  const a = agents.updateAgent(req.user.id, req.params.id, req.body || {});
+  return a ? res.json(a) : bad(res, 404, 'not found');
+});
+app.delete('/api/agents/:id', auth.requireAuth, (req, res) => res.json({ ok: agents.deleteAgent(req.user.id, req.params.id) }));
+
+// Send a test message to one of your agents (or a real customer message).
+app.post('/api/agents/:id/message', auth.requireAuth, (req, res) => {
+  const agent = agents.getAgent(req.user.id, req.params.id);
+  if (!agent) return bad(res, 404, 'not found');
+  const text = String(req.body?.text || '').trim();
+  if (!text) return bad(res, 400, 'text required');
+  const from = String(req.body?.from || 'Guest');
+  const customer = biz.upsertCustomer(req.user.id, { name: from });
+  const convo = biz.openConversation(req.user.id, { channel: req.body?.channel || 'chat', customer: customer.name, subject: text.slice(0, 40) });
+  biz.addMessage(req.user.id, convo.id, 'customer', text);
+  const reply = agents.handle(req.user.id, agent, text);
+  biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
+  if (reply.intent === 'booking' && agent.capabilities.includes('bookings')) {
+    biz.addBooking(req.user.id, { customer: customer.name, service: 'Appointment', when: 'to confirm', notes: text.slice(0, 120) });
+  }
+  res.json({ reply, conversationId: convo.id });
 });
 
 // ============================================================================

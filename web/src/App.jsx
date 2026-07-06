@@ -7,6 +7,7 @@ import Atlas from './pages/Atlas.jsx';
 import Settings from './pages/Settings.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Billing from './pages/Billing.jsx';
+import Integrations from './pages/Integrations.jsx';
 import Nav from './Nav.jsx';
 import { Toaster } from './toast.jsx';
 import { Reader } from './reader.jsx';
@@ -90,7 +91,8 @@ export default function App() {
     view === 'atlas' ? <Atlas agent={agent} user={user} chat={chat} setChat={setChat} tasks={tasks} /> :
     view === 'settings' ? <Settings user={user} setUser={setUser} agent={agent} onDeleted={signedOut} /> :
     view === 'billing' ? <Billing user={user} setUser={setUser} /> :
-    <Dashboard agent={agent} user={user} tasks={tasks} reload={reload} />;
+    view === 'integrations' ? <Integrations /> :
+    <Dashboard agent={agent} user={user} gotoView={setView} />;
 
   return (
     <div className="app">

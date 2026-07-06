@@ -404,16 +404,39 @@ app.put('/api/connectors/:id', auth.requireAuth, (req, res) => {
 app.delete('/api/connectors/:id', auth.requireAuth, (req, res) => { connectors.clearConnector(req.user.id, req.params.id); res.json({ ok: true }); });
 
 // ============================================================================
+// Dashboard — the at-a-glance overview (tiles, trend, top agents, recent)
+// ============================================================================
+app.get('/api/overview', auth.requireAuth, (req, res) => {
+  const list = agents.listAgents(req.user.id);
+  const stats = biz.bizStats(req.user.id);
+  const inbox = biz.listInbox(req.user.id);
+  const agentName = Object.fromEntries(list.map((a) => [a.id, a.name]));
+  const totals = {
+    agents: list.length,
+    active: list.filter((a) => a.status === 'active').length,
+    handled: list.reduce((n, a) => n + (a.stats?.handled || 0), 0),
+    bookings: list.reduce((n, a) => n + (a.stats?.bookings || 0), 0),
+    customers: stats.customers,
+    conversations: stats.conversations,
+    open: stats.open,
+  };
+  const topAgents = [...list].sort((a, b) => (b.stats?.handled || 0) - (a.stats?.handled || 0)).slice(0, 5)
+    .map((a) => ({ id: a.id, name: a.name, status: a.status, handled: a.stats?.handled || 0, bookings: a.stats?.bookings || 0, capabilities: a.capabilities.length }));
+  const recent = [...inbox].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6)
+    .map((c) => ({ id: c.id, customer: c.customer, subject: c.subject, channel: c.channel, updatedAt: c.updatedAt, agent: agentName[c.agentId] || '—', messages: c.messages.length }));
+  res.json({ totals, trend: stats.trend, topAgents, recent, businessName: biz.getBusiness(req.user.id).profile.name });
+});
+
+// ============================================================================
 // Agents — a business builds & runs its own AI agents
 // ============================================================================
 app.get('/api/agents', auth.requireAuth, (req, res) => {
-  const plan = billing.planFor(req.user);
-  res.json({ agents: agents.listAgents(req.user.id), limit: plan.agents, used: agents.countAgents(req.user.id) });
+  res.json({ agents: agents.listAgents(req.user.id), limit: billing.agentLimit(req.user), used: agents.countAgents(req.user.id) });
 });
 app.post('/api/agents', auth.requireAuth, (req, res) => {
-  const plan = billing.planFor(req.user);
-  if (agents.countAgents(req.user.id) >= plan.agents) {
-    return bad(res, 402, `Your ${plan.name} plan includes ${plan.agents} agent${plan.agents !== 1 ? 's' : ''}. Upgrade to add more.`);
+  const limit = billing.agentLimit(req.user);
+  if (agents.countAgents(req.user.id) >= limit) {
+    return bad(res, 402, `Your ${billing.planFor(req.user).name} plan includes ${limit} agent${limit !== 1 ? 's' : ''}. Upgrade to add more.`);
   }
   // Only allow capabilities the plan entitles.
   const caps = (req.body?.capabilities || []).filter((c) => billing.entitled(req.user, c));
@@ -794,7 +817,7 @@ app.get('/healthz', (_req, res) => res.json({ ok: true, db: dbMode, uptime: Math
 // On single-port hosts (Render/Heroku-style), set ADMIN_MOUNT=path to serve the
 // admin console at /atlas-admin on the main port instead of its own port.
 const adminApp = startAdmin({ enqueue });
-if (adminApp) app.use('/atlas-admin', adminApp);
+if (adminApp) app.use('/atlas-operations', adminApp);
 
 // ============================================================================
 // frontend
@@ -804,7 +827,7 @@ if (fs.existsSync(dist)) {
   app.use(express.static(dist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/files/') ||
-        req.path.startsWith('/share/') || req.path.startsWith('/atlas-admin')) return next();
+        req.path.startsWith('/share/') || req.path.startsWith('/atlas-operations')) return next();
     res.sendFile(path.join(dist, 'index.html'));
   });
 }
@@ -881,7 +904,7 @@ app.listen(config.port, () => {
   const e = engineInfo();
   console.log(`\n  ${config.agentName} online — myAgent on http://localhost:${config.port}`);
   console.log(`  engine: ${e.engine} v${e.version} · ${e.skills} skills · ${e.intents} intents · self-contained`);
-  console.log(`  store:  ${dbMode}${adminApp ? ` · admin mounted at /atlas-admin` : ''}`);
+  console.log(`  store:  ${dbMode}${adminApp ? ` · operations mounted at /atlas-operations` : ''}`);
   console.log(`  sms:    ${smsReady() ? 'Twilio ready' : 'off'}`);
   if (!fs.existsSync(dist)) console.log(`  note:   frontend not built — run "npm run build".`);
 });

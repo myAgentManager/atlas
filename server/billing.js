@@ -21,9 +21,15 @@ export function capsForPlan(plan) {
   }
   return [...caps];
 }
-// Does this account's plan include a given capability?
+// Does this account's plan include a given capability? Founders (Atlas Networks
+// staff) get everything, comped — no subscription required.
 export function entitled(user, capability) {
+  if (user?.founder) return true;
   return capsForPlan(planFor(user)).includes(capability);
+}
+// How many agents this account may run. Founders effectively unlimited.
+export function agentLimit(user) {
+  return user?.founder ? 999 : planFor(user).agents;
 }
 // Intro pricing: 60% off the first N months.
 export function introPrice(price) {
@@ -114,13 +120,16 @@ export function handleWebhook(event) {
 
 export function billingState(user) {
   const plan = planFor(user);
+  const founder = Boolean(user.founder);
   return {
     live: billingLive(),
     plan: plan.id, planName: plan.name,
     status: user.subscription?.status || 'active',
     since: user.subscription?.since || user.createdAt,
-    agents: plan.agents,
-    capabilities: capsForPlan(plan),
+    agents: agentLimit(user),
+    capabilities: founder ? Object.keys(CAPABILITIES) : capsForPlan(plan),
     intro: config.introDiscount,
+    founder,
+    comped: founder,
   };
 }

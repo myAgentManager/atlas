@@ -25,13 +25,16 @@ function adminUser(req) {
 // IP allowlist: when ADMIN_ALLOWED_IPS is set, the console does not exist for
 // anyone else — they get a plain 404, not a login page. Localhost is always
 // allowed so you can't lock yourself out of your own machine.
-const ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '')
+const ENV_ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '')
   .split(',').map((s) => s.trim()).filter(Boolean);
 function ipAllowed(req) {
-  if (!ALLOWED_IPS.length) return true;
+  // Combine the env allowlist with the one editable in the console.
+  const extra = getPlatform().adminAllowedIps || [];
+  const all = [...ENV_ALLOWED_IPS, ...extra];
+  if (!all.length) return true; // no allowlist configured → open (localhost-safe)
   const ip = String(req.ip || '').replace(/^::ffff:/, '');
-  if (ip === '127.0.0.1' || ip === '::1') return true;
-  return ALLOWED_IPS.includes(ip);
+  if (ip === '127.0.0.1' || ip === '::1') return true; // never lock yourself out locally
+  return all.includes(ip);
 }
 
 export function startAdmin({ enqueue }) {
@@ -240,6 +243,8 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 <div class="pform">
   <label>Public base URL <input id="p_base" placeholder="https://myagent.example.com"></label>
   <label class="row"><input type="checkbox" id="p_reg"> Registration open (new accounts allowed)</label>
+  <label>Allowed IPs for this Operations console (one per line; blank = open)
+    <textarea id="p_ips" rows="3" placeholder="207.135.233.110"></textarea></label>
   <div class="prov">
     <div class="prov-head"><b>Google Sign-In</b><label class="row"><input type="checkbox" id="g_on"> enabled</label></div>
     <label>Client ID <input id="g_id" placeholder="xxxx.apps.googleusercontent.com"></label>
@@ -325,6 +330,7 @@ async function resetPw(id){const d=await api('/api/users/'+id+'/reset-password',
 async function loadPlatform(){
   const p=await api('/api/platform');
   $('#p_base').value=p.baseUrl||'';$('#p_reg').checked=!!p.registrationOpen;
+  $('#p_ips').value=(p.adminAllowedIps||[]).join('\n');
   $('#g_on').checked=!!p.google.enabled;$('#g_id').value=p.google.clientId||'';$('#g_secret').value=p.google.clientSecret||'';
   $('#a_on').checked=!!p.apple.enabled;$('#a_sid').value=p.apple.serviceId||'';$('#a_team').value=p.apple.teamId||'';$('#a_key').value=p.apple.keyId||'';$('#a_pk').value=p.apple.privateKey||'';
   const c=p.channels||{};const sms=c.sms||{},em=c.email||{};
@@ -347,6 +353,7 @@ function updateCb(){const b=$('#p_base').value.replace(/\\/+$/,'')||location.ori
 document.addEventListener('input',(e)=>{if(e.target.id==='p_base')updateCb()});
 async function savePlatform(){
   const body={baseUrl:$('#p_base').value.trim(),registrationOpen:$('#p_reg').checked,
+    adminAllowedIps:$('#p_ips').value.split('\n').map(function(s){return s.trim()}).filter(Boolean),
     google:{enabled:$('#g_on').checked,clientId:$('#g_id').value.trim(),clientSecret:$('#g_secret').value.trim()},
     apple:{enabled:$('#a_on').checked,serviceId:$('#a_sid').value.trim(),teamId:$('#a_team').value.trim(),keyId:$('#a_key').value.trim(),privateKey:$('#a_pk').value}};
   const r=await fetch(BASE+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

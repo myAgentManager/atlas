@@ -34,6 +34,9 @@ export default function Billing({ user, setUser }) {
 
   return (
     <div className="billing">
+      {state.founder && (
+        <div className="founder-banner"><Icon name="shield" size={15} /> Atlas Networks staff — everything's unlocked and comped. Pick any plan below to preview what customers see.</div>
+      )}
       <div className="billing-head">
         <h1>Plans &amp; billing</h1>
         <p>Priced by how many AI agents you run. <b className="intro-line">{intro.percent}% off your first {intro.months} months</b> on any plan.{state.live ? '' : ' Demo mode — switching plans is instant and free until Stripe keys are added.'}</p>

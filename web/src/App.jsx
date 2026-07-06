@@ -10,6 +10,7 @@ import Billing from './pages/Billing.jsx';
 import Integrations from './pages/Integrations.jsx';
 import Business from './pages/Business.jsx';
 import Customers from './pages/Customers.jsx';
+import Overview from './pages/Overview.jsx';
 import Nav from './Nav.jsx';
 import { Toaster } from './toast.jsx';
 import { Reader } from './reader.jsx';
@@ -33,7 +34,7 @@ export default function App() {
   useEffect(() => {
     api.agent().then(setAgent).catch(() => {});
     api.me()
-      .then(({ user }) => { setUser(user); setView(user.welcomed ? 'deck' : 'welcome'); })
+      .then(({ user }) => { setUser(user); setView(user.welcomed ? 'dashboard' : 'welcome'); })
       .catch(() => {})
       .finally(() => setBooted(true));
   }, []);
@@ -71,7 +72,7 @@ export default function App() {
     return () => { es.close(); setConnected(false); };
   }, [user]);
 
-  const signedIn = (u) => { setUser(u); setView(u.welcomed ? 'deck' : 'welcome'); };
+  const signedIn = (u) => { setUser(u); setView(u.welcomed ? 'dashboard' : 'welcome'); };
   const signedOut = () => { setUser(null); setTasks([]); setChat([]); setView('home'); };
 
   if (!booted) return <div className="boot"><span className="led cyan pulse" /> waking ATLAS…</div>;
@@ -85,7 +86,7 @@ export default function App() {
   }
   if (view === 'welcome') {
     return <Welcome agent={agent} user={user}
-      onDone={() => { setUser({ ...user, welcomed: true }); setView('deck'); }}
+      onDone={() => { setUser({ ...user, welcomed: true }); setView('dashboard'); }}
       onGo={(dest) => { setUser({ ...user, welcomed: true }); setView(dest); }} />;
   }
 
@@ -96,6 +97,7 @@ export default function App() {
     view === 'integrations' ? <Integrations /> :
     view === 'business' ? <Business /> :
     view === 'customers' ? <Customers /> :
+    view === 'dashboard' ? <Overview user={user} gotoView={setView} /> :
     <Dashboard agent={agent} user={user} gotoView={setView} />;
 
   return (

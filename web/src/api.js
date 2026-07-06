@@ -62,6 +62,7 @@ export const api = {
   cancelPlan: () => post('/api/billing/cancel'),
 
   // catalog + connectors + agents (the B2B platform)
+  overview: () => get('/api/overview'),
   catalog: () => get('/api/catalog'),
   connectors: () => get('/api/connectors'),
   saveConnector: (id, fields) => send(`/api/connectors/${id}`, 'PUT', fields),

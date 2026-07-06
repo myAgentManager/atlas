@@ -4,8 +4,9 @@ import { Icon, Mark } from './icons.jsx';
 
 // Shared top bar for signed-in views: brand, tabs, connection LED, account.
 export default function Nav({ view, setView, user, connected, onSignOut }) {
-  // Business-owner nav: agents, the business they learn, customers, tools, plans.
+  // Business-owner nav: overview, agents, the business they learn, customers…
   const tabs = [
+    ['dashboard', 'Dashboard', 'bolt'],
     ['deck', 'Agents', 'brain'],
     ['business', 'Business', 'home'],
     ['customers', 'Customers', 'user'],

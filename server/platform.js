@@ -6,6 +6,7 @@ import { config } from './config.js';
 const DEFAULTS = {
   baseUrl: `http://localhost:${config.port}`,
   registrationOpen: true,
+  adminAllowedIps: [], // extra IPs (beyond env ADMIN_ALLOWED_IPS) allowed into Operations
   google: { enabled: false, clientId: '', clientSecret: '' },
   apple: { enabled: false, serviceId: '', teamId: '', keyId: '', privateKey: '' },
   // Messaging + 2SV channels, all admin-controlled and independently switchable.
@@ -52,6 +53,7 @@ export function setPlatform(patch = {}) {
     ...state,
     ...(typeof patch.baseUrl === 'string' ? { baseUrl: patch.baseUrl.replace(/\/+$/, '') } : {}),
     ...(typeof patch.registrationOpen === 'boolean' ? { registrationOpen: patch.registrationOpen } : {}),
+    ...(Array.isArray(patch.adminAllowedIps) ? { adminAllowedIps: patch.adminAllowedIps.map((s) => String(s).trim()).filter(Boolean).slice(0, 50) } : {}),
     google: { ...state.google, ...(patch.google || {}) },
     apple: { ...state.apple, ...(patch.apple || {}) },
     channels: {

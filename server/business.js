@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { getDoc, saveDoc } from './db.js';
 import { bus } from './bus.js';
 import { tokenize } from './atlas/nlu.js';
+import { newVoice, contract, pick } from './atlas/voice.js';
+import * as kb from './atlas/kb.js';
 
 let db = getDoc('business', { biz: {} }); // biz[userId] = { profile, faqs, customers, bookings, inbox }
 const save = () => saveDoc('business', db);
@@ -125,38 +127,125 @@ export function addMessage(userId, convoId, from, text) {
 }
 export const listInbox = (userId) => biz(userId).inbox;
 
-// --- the agent's front-desk reply ------------------------------------------
-// Drafts a professional, on-brand answer to a customer message using the
-// business profile + FAQ. Detects booking intent and light sentiment so the UI
-// can flag "needs a human".
-export function draftReply(userId, text) {
+// --- the agent's front-desk mind ---------------------------------------------
+// respond() is how an agent actually thinks about a customer message:
+//   1. pull apart what they're asking (can be several things at once)
+//   2. answer each part from what it KNOWS — profile, FAQ, the knowledge DB
+//   3. say it in its own words (voice engine), greeting only on first contact
+//   4. log what it couldn't answer as a knowledge gap, so it studies up
+// Returns thinkMs so the UI can pace the reply like someone actually typing.
+export function respond(userId, text, { greeted = false, channel = 'chat', can = { booking: true, sales: true } } = {}) {
   const b = biz(userId);
   const p = b.profile;
-  const name = p.name || 'our team';
-  const hello = { friendly: 'Hi there!', formal: 'Hello,', warm: 'Hey, thanks for reaching out!' }[p.tone] || 'Hi there!';
-  const contact = [p.phone && `Call: ${p.phone}`, p.website && p.website, p.address].filter(Boolean).join(' · ');
-  const sign = `\n\n— ${name}${p.hours ? `\nHours: ${p.hours}` : ''}${contact ? `\n${contact}` : ''}`;
+  const r = newVoice(text + Date.now());
+  const low = String(text).toLowerCase();
+  const parts = [];
+  const intents = new Set();
 
+  // -- direct knowledge: answer the specific things they asked ---------------
+  if (/\b(hour|open|close|closing|opening|what time)\b/.test(low) && p.hours) {
+    parts.push(pick(r, [`we're open ${p.hours}`, `hours are ${p.hours}`, `you can catch us ${p.hours}`]));
+    intents.add('faq');
+  }
+  if (/\b(where|address|located|location|directions|find you)\b/.test(low) && p.address) {
+    parts.push(pick(r, [`we're at ${p.address}`, `you'll find us at ${p.address}`, `${p.address} — easy to spot`]));
+    intents.add('faq');
+  }
+  if (/\b(phone|call you|number)\b/.test(low) && p.phone) {
+    parts.push(pick(r, [`best number to reach us is ${p.phone}`, `you can call ${p.phone}`]));
+    intents.add('faq');
+  }
+  if (/\b(menu|services?|offer|what do you (do|sell|have)|products?)\b/.test(low) && p.services) {
+    parts.push(pick(r, [`we do ${p.services}`, `on offer: ${p.services}`, `our lineup is ${p.services}`]));
+    intents.add('faq');
+  }
+
+  // Skip anything that restates what we've already said (same idea, other words).
+  const said = () => new Set(parts.flatMap((x) => tokenize(x)));
+  const restates = (candidate) => {
+    const ct = tokenize(candidate).filter((w) => w.length > 3);
+    if (!ct.length) return false;
+    const have = said();
+    return ct.filter((w) => have.has(w)).length / ct.length >= 0.6;
+  };
+
+  // -- the FAQ + knowledge database (what Atlas has learned) ------------------
+  const faq = bestFaq(userId, text);
+  if (faq?.a && !restates(faq.a)) {
+    parts.push(pick(r, ['', 'good question — ', 'yep — ', 'so, ']) + faq.a);
+    intents.add('faq');
+  }
+  for (const f of kb.search(userId, text, 2)) {
+    if (!restates(f.fact)) { parts.push(f.fact); intents.add('faq'); }
+  }
+
+  // -- action intents ----------------------------------------------------------
   const wantsBooking = /\b(book|appointment|schedule|reserve|reservation|availability|slot|come in)\b/i.test(text);
   const wantsOrder = /\b(order|buy|purchase|price|pricing|cost|how much|quote)\b/i.test(text);
+  if (wantsBooking && can.booking === false) {
+    parts.push(`I've noted your request and someone from the team will follow up to get you scheduled.`);
+  } else if (wantsBooking) {
+    parts.push(pick(r, [
+      `happy to get you booked — what day and time work for you?`,
+      `I can set that up. When were you thinking?`,
+      `let's get you on the calendar — give me a day and time and I'll confirm.`,
+    ]));
+    intents.add('booking');
+  } else if (wantsOrder && can.sales !== false) {
+    parts.push(pick(r, [
+      `I can help with that — tell me a little more about what you're after and I'll get you exact details${p.services ? ` (we do ${p.services})` : ''}.`,
+      `sure — what exactly are you looking for? I'll pull together the details and pricing.`,
+    ]));
+    intents.add('sales');
+  }
+
+  // -- nothing matched: be honest, ask a sharp follow-up, and file the gap ----
+  if (!parts.length) {
+    kb.logGap(userId, text);
+    parts.push(pick(r, [
+      `good question — I don't want to guess and get it wrong. Can you give me a little more detail so I get you the right answer?`,
+      `let me make sure I get this right: can you tell me a bit more about what you need?`,
+      `honestly, that one's outside what I know so far — I've flagged it for the team. Anything else I can sort out right now?`,
+    ]));
+  }
+
+  // -- escalation ---------------------------------------------------------------
   const escalateWords = (p.escalateOn || '').split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
   const upset = /\b(angry|terrible|refund|complaint|awful|worst|cancel|disappointed|broken)\b/i.test(text)
-    || escalateWords.some((w) => text.toLowerCase().includes(w));
+    || escalateWords.some((w) => low.includes(w));
+  if (upset) {
+    parts.push(pick(r, [
+      `I'm looping in a real person on our team to make sure this gets handled properly.`,
+      `this deserves a human — I've flagged it to the team and someone will follow up soon.`,
+    ]));
+  }
 
-  const faq = bestFaq(userId, text);
-  let body;
-  if (faq) body = faq.a || `Great question — here's what I can share: ${faq.q}`;
-  else if (wantsBooking) body = `I'd be glad to get you booked${p.services ? ` for ${p.services.split(',')[0].trim()}` : ''}. What day and time work best for you? I'll confirm right away.`;
-  else if (wantsOrder) body = `Happy to help with that${p.services ? ` — we offer ${p.services}` : ''}. Tell me a bit more about what you're looking for and I'll get you exact details and pricing.`;
-  else if (p.about) body = `${p.about.slice(0, 200)} How can I help you today?`;
-  else body = `How can I help you today?`;
+  // -- assembly: answer first, greeting only on first contact -----------------
+  const opener = greeted ? '' : pick(r, ['Hi! ', 'Hey! ', 'Hey there — ', '']);
+  let body = '';
+  parts.forEach((part, i) => {
+    if (i === 0) body = part.charAt(0).toUpperCase() + part.slice(1);
+    else body += (/[.!?]$/.test(body) ? ' ' : '. ') + (part.charAt(0).toUpperCase() + part.slice(1));
+  });
+  if (!/[.!?]$/.test(body)) body += '.';
 
-  return {
-    text: `${hello} ${body}${sign}`,
-    intent: wantsBooking ? 'booking' : wantsOrder ? 'sales' : faq ? 'faq' : 'general',
-    needsHuman: upset,
-    routeTo: upset ? (p.routeTo || '') : '', // where to hand off to a human
-  };
+  // signature only on email (or a first chat touch from a named business)
+  const contactLine = [p.phone && `Call: ${p.phone}`, p.website].filter(Boolean).join(' · ');
+  const sign = channel === 'email'
+    ? `\n\n— ${p.name || 'the team'}${p.hours ? `\nHours: ${p.hours}` : ''}${contactLine ? `\n${contactLine}` : ''}`
+    : '';
+
+  const out = contract(opener + body + sign);
+  const intent = intents.has('booking') ? 'booking' : intents.has('sales') ? 'sales' : intents.has('faq') ? 'faq' : 'general';
+  // pace like a person: read time + typing time, capped
+  const thinkMs = Math.min(3200, Math.max(700, 350 + text.length * 9 + out.length * 4));
+
+  return { text: out, intent, needsHuman: upset, routeTo: upset ? (p.routeTo || '') : '', thinkMs };
+}
+
+// Back-compat wrapper — older callers (email loop, incoming route) use this.
+export function draftReply(userId, text, opts = {}) {
+  return respond(userId, text, opts);
 }
 
 export function bizStats(userId) {

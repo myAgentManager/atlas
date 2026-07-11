@@ -71,7 +71,14 @@ export const api = {
   createAgent: (body) => post('/api/agents', body),
   updateAgent: (id, body) => send(`/api/agents/${id}`, 'PATCH', body),
   deleteAgent: (id) => send(`/api/agents/${id}`, 'DELETE'),
-  messageAgent: (id, text, from) => post(`/api/agents/${id}/message`, { text, from }),
+  messageAgent: (id, text, from, conversationId) => post(`/api/agents/${id}/message`, { text, from, conversationId }),
+
+  // Atlas Knowledge Database
+  knowledge: () => get('/api/knowledge'),
+  addFact: (topic, fact) => post('/api/knowledge/fact', { topic, fact }),
+  removeFact: (id) => send(`/api/knowledge/fact/${id}`, 'DELETE'),
+  resolveGap: (id, answer) => post(`/api/knowledge/gap/${id}/resolve`, { answer }),
+  studySite: () => post('/api/knowledge/study-site'),
   agentConversations: (id) => get(`/api/agents/${id}/conversations`),
   customerDetail: (id) => get(`/api/business/customers/${id}`),
 

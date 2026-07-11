@@ -14,9 +14,7 @@ services:
         sync: false
       - key: ADMIN_CODE # change from the default before going live
         sync: false
-      - key: ADMIN_ALLOWED_IPS # console is invisible (404) to every other IP
-        value: "207.135.233.110"
-      - key: ADMIN_MOUNT # single-port host → admin console at /atlas-admin
+      - key: ADMIN_MOUNT # single-port host → Operations console at /atlas-operations
         value: path
       - key: TRUST_PROXY
         value: "1"

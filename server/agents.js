@@ -55,23 +55,19 @@ export function bumpStat(userId, id, key, by = 1) {
 }
 
 // The agent handles an incoming customer message using its persona +
-// capabilities + the business knowledge. Only offers what it's allowed to do.
-export function handle(userId, agent, text) {
+// capabilities + the business knowledge. It thinks before it answers: the
+// reply comes back answer-first, in the agent's own words, with a thinkMs
+// pace so the UI shows it "typing" like a person would.
+export function handle(userId, agent, text, opts = {}) {
   const has = (c) => agent.capabilities.includes(c);
-  const draft = biz.draftReply(userId, text);
-
-  // Respect capability gating: if it can't book but the customer wants to,
-  // it collects the request instead of promising a booking.
-  if (draft.intent === 'booking' && !has('bookings')) {
-    draft.text = draft.text.replace(/I'd be glad to get you booked.*?right away\./,
-      `I've noted your request and someone will follow up to schedule you.`);
-    draft.intent = 'general';
-  }
-  if (draft.intent === 'sales' && !has('sales')) draft.intent = 'general';
+  const draft = biz.respond(userId, text, {
+    greeted: Boolean(opts.greeted),
+    channel: opts.channel || 'chat',
+    can: { booking: has('bookings'), sales: has('sales') },
+  });
 
   bumpStat(userId, agent.id, 'handled');
   if (draft.intent === 'booking') bumpStat(userId, agent.id, 'bookings');
-  if (draft.needsHuman) draft.text += `\n\n(Flagged for a team member to review.)`;
 
   const multi = has('multilingual') && agent.languages && !/^english$/i.test(agent.languages);
   return { ...draft, agent: agent.name, multilingual: multi };

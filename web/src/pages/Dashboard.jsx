@@ -171,11 +171,13 @@ function AgentDetail({ agent, catalog, conns, onChange, gotoView }) {
 }
 
 function TestChat({ agent }) {
-  const [msgs, setMsgs] = useState([{ who: 'agent', text: agent.greeting }]);
+  const [msgs, setMsgs] = useState([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const convoRef = useRef(null); // keep the same conversation so it greets once
   const ref = useRef(null);
-  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length]);
+  useEffect(() => { const el = ref.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length, typing]);
 
   const send = async () => {
     const t = text.trim();
@@ -183,9 +185,14 @@ function TestChat({ agent }) {
     setText(''); setBusy(true);
     setMsgs((m) => [...m, { who: 'customer', text: t }]);
     try {
-      const { reply } = await api.messageAgent(agent.id, t, 'You (test)');
+      const { reply, conversationId } = await api.messageAgent(agent.id, t, 'You (test)', convoRef.current);
+      convoRef.current = conversationId;
+      // Show a "thinking → typing" pause so it reads like a person, not instant.
+      setTyping(true);
+      await new Promise((r) => setTimeout(r, Math.min(3200, reply.thinkMs || 900)));
+      setTyping(false);
       setMsgs((m) => [...m, { who: 'agent', text: reply.text, intent: reply.intent }]);
-    } catch (e) { toast(e.message, 'err'); }
+    } catch (e) { setTyping(false); toast(e.message, 'err'); }
     finally { setBusy(false); }
   };
 
@@ -193,6 +200,7 @@ function TestChat({ agent }) {
     <div className="panel agent-chat">
       <div className="panel-title"><Icon name="chat" size={14} /> Talk to your agent as a customer would</div>
       <div className="feed-scroll agent-chat-scroll" ref={ref}>
+        {msgs.length === 0 && <div className="empty">Say something a customer might — ask about hours, prices, or try to book. Your agent answers from what it knows.</div>}
         {msgs.map((m, i) => (
           <div key={i} className={`bubble-row ${m.who === 'customer' ? 'mine' : 'agent'}`}>
             <div className="bubble">
@@ -201,10 +209,15 @@ function TestChat({ agent }) {
             </div>
           </div>
         ))}
+        {typing && (
+          <div className="bubble-row agent">
+            <div className="bubble typing"><div className="bubble-who">{agent.name}</div><div className="typing-dots"><span /><span /><span /></div></div>
+          </div>
+        )}
       </div>
       <div className="chat-bar">
         <input className="field" placeholder="Type as a customer — “do you deliver? can I book for Friday?”" value={text}
-          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} />
+          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} disabled={busy} />
         <button className="gel-btn gel-primary send" disabled={busy || !text.trim()} onClick={send}><Icon name="send" size={16} /></button>
       </div>
     </div>

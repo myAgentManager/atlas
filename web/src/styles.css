@@ -1275,3 +1275,36 @@ body {
 .founder-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; margin-bottom: 18px;
   background: linear-gradient(180deg, rgba(15,181,164,0.1), rgba(15,181,164,0.04)); border: 1px solid rgba(15,181,164,0.3); color: var(--cyan-deep); font-size: 13.5px; font-weight: 600; }
 @media (max-width: 1000px) { .ov-tiles.five { grid-template-columns: repeat(2, 1fr); } .ov-main { grid-template-columns: 1fr; } .recent-row { grid-template-columns: auto 1fr auto; } .recent-agent, .recent-when { display: none; } .wizard-conns { grid-template-columns: 1fr; } }
+
+/* ============================================================================
+   v14 — Atlas Knowledge Database + typing indicator
+   ========================================================================== */
+.knowledge-page { flex: 1; max-width: 1040px; margin: 0 auto; width: 100%; padding: 8px clamp(14px,3vw,32px) 40px; overflow-y: auto; }
+.kb-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+.kb-tile { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow-sm); }
+.kb-tile b { display: block; font-family: var(--mono); font-size: 28px; color: var(--cyan-deep); }
+.kb-tile b.amber { color: var(--amber); }
+.kb-tile span { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-faint); }
+.kb-tile.small b, .kb-sources { font-family: var(--font); font-size: 14px; color: var(--ink); font-weight: 600; text-transform: none; letter-spacing: 0; display: block; margin-bottom: 4px; }
+.kb-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 16px; }
+.kb-grid .field { margin-bottom: 10px; }
+.gap-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.gap-q { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.gap-q .icon { color: var(--amber); flex: none; }
+.gap-count { font-size: 11px; color: var(--ink-faint); font-weight: 500; background: var(--well); padding: 2px 8px; border-radius: 20px; }
+.gap-answer { display: flex; gap: 8px; }
+.gap-answer .field { flex: 1; margin: 0; }
+.fact-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.fact-main { flex: 1; min-width: 0; }
+.fact-text { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.fact-meta { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; }
+.fact-topic { color: var(--cyan-deep); font-weight: 600; }
+
+/* typing indicator */
+.bubble.typing { padding-bottom: 14px; }
+.typing-dots { display: flex; gap: 4px; padding: 4px 0 0; }
+.typing-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); opacity: 0.5; animation: typedot 1.2s ease-in-out infinite; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typedot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 0.9; } }
+@media (max-width: 900px) { .kb-tiles, .kb-grid { grid-template-columns: 1fr; } }

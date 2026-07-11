@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 8787
+    },
+    {
+      "name": "1view",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["1View/server.js"],
+      "port": 7307
     }
   ]
 }

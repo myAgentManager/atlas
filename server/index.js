@@ -17,6 +17,7 @@ import * as biz from './business.js';
 import * as agents from './agents.js';
 import * as connectors from './connectors.js';
 import { CONNECTORS, CAPABILITIES } from './catalog.js';
+import * as kb from './atlas/kb.js';
 import { fetchRecent } from './imap.js';
 import { sendVia } from './email.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
@@ -290,6 +291,7 @@ app.delete('/api/me', auth.requireAuth, async (req, res) => {
   biz.removeAllForUser(req.user.id);
   agents.removeAllForUser(req.user.id);
   connectors.removeAllForUser(req.user.id);
+  kb.removeAllForUser(req.user.id);
   await forUser(req.user.id).removeAll().catch(() => {}); // wipe their workspace: privacy
   auth.deleteUser(req.user.id);
   auth.clearCookie(res, 'ma_sess');
@@ -460,10 +462,15 @@ app.post('/api/agents/:id/message', auth.requireAuth, (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) return bad(res, 400, 'text required');
   const from = String(req.body?.from || 'Guest');
+  const channel = req.body?.channel || 'chat';
+  // Continue an existing thread when the client passes one, so the agent only
+  // greets on first contact — not on every message.
+  let convo = req.body?.conversationId ? biz.getConversation(req.user.id, req.body.conversationId) : null;
+  const greeted = Boolean(convo && convo.messages.some((m) => m.from === 'agent'));
   const customer = biz.upsertCustomer(req.user.id, { name: from });
-  const convo = biz.openConversation(req.user.id, { channel: req.body?.channel || 'chat', agentId: agent.id, customer: customer.name, subject: text.slice(0, 40) });
+  if (!convo) convo = biz.openConversation(req.user.id, { channel, agentId: agent.id, customer: customer.name, subject: text.slice(0, 40) });
   biz.addMessage(req.user.id, convo.id, 'customer', text);
-  const reply = agents.handle(req.user.id, agent, text);
+  const reply = agents.handle(req.user.id, agent, text, { greeted, channel });
   biz.addMessage(req.user.id, convo.id, 'agent', reply.text);
   if (reply.intent === 'booking' && agent.capabilities.includes('bookings')) {
     biz.addBooking(req.user.id, { customer: customer.name, service: 'Appointment', when: 'to confirm', notes: text.slice(0, 120) });
@@ -478,8 +485,39 @@ app.get('/api/business', auth.requireAuth, (req, res) => {
   const b = biz.getBusiness(req.user.id);
   res.json({ profile: b.profile, faqs: b.faqs, stats: biz.bizStats(req.user.id) });
 });
-app.patch('/api/business/profile', auth.requireAuth, (req, res) => res.json(biz.setProfile(req.user.id, req.body || {})));
-app.put('/api/business/faqs', auth.requireAuth, (req, res) => res.json(biz.setFaqs(req.user.id, req.body?.faqs)));
+app.patch('/api/business/profile', auth.requireAuth, (req, res) => {
+  const profile = biz.setProfile(req.user.id, req.body || {});
+  kb.absorbBusiness(req.user.id, profile, biz.getBusiness(req.user.id).faqs); // agent learns it
+  res.json(profile);
+});
+app.put('/api/business/faqs', auth.requireAuth, (req, res) => {
+  const faqs = biz.setFaqs(req.user.id, req.body?.faqs);
+  kb.absorbBusiness(req.user.id, biz.getBusiness(req.user.id).profile, faqs);
+  res.json(faqs);
+});
+
+// ============================================================================
+// Atlas Knowledge Database — what each agent has learned about the business
+// ============================================================================
+app.get('/api/knowledge', auth.requireAuth, (req, res) => res.json(kb.kbStats(req.user.id)));
+app.post('/api/knowledge/fact', auth.requireAuth, (req, res) => {
+  const row = kb.addFact(req.user.id, { topic: req.body?.topic, fact: req.body?.fact, source: 'owner' });
+  return row ? res.status(201).json(row) : bad(res, 400, 'Give me a fact of at least a few words.');
+});
+app.delete('/api/knowledge/fact/:id', auth.requireAuth, (req, res) => res.json({ ok: kb.removeFact(req.user.id, req.params.id) }));
+app.post('/api/knowledge/gap/:id/resolve', auth.requireAuth, (req, res) => {
+  const row = kb.resolveGap(req.user.id, req.params.id, req.body?.answer);
+  return row ? res.json(row) : bad(res, 400, 'Give an answer so I can learn it.');
+});
+// Atlas researches the business's own website and files what it learns.
+app.post('/api/knowledge/study-site', auth.requireAuth, async (req, res) => {
+  const site = connectors.getConnectorConfig(req.user.id, 'website')?.url || biz.getBusiness(req.user.id).profile.website;
+  if (!site) return bad(res, 400, 'Add your website under Business or Integrations first, then I can study it.');
+  try {
+    const out = await kb.studyWebsite(req.user.id, /^https?:/i.test(site) ? site : `https://${site}`, (u) => forUser(req.user.id).fetchPage(u));
+    res.json({ ok: true, ...out });
+  } catch (e) { bad(res, 502, e.message); }
+});
 
 app.get('/api/business/customers', auth.requireAuth, (req, res) => res.json(biz.listCustomers(req.user.id)));
 app.get('/api/business/customers/:id', auth.requireAuth, (req, res) => {

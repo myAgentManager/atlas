@@ -9,6 +9,7 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
     ['dashboard', 'Dashboard', 'bolt'],
     ['deck', 'Agents', 'brain'],
     ['business', 'Business', 'home'],
+    ['knowledge', 'Knowledge', 'brain'],
     ['customers', 'Customers', 'user'],
     ['integrations', 'Integrations', 'plug'],
     ['billing', 'Plans', 'spark'],

@@ -55,7 +55,7 @@ Neither requires a credit card.
    - `DATABASE_URL` → your Neon string
    - `ADMIN_CODE` → your own secret code (don't ship the default)
 3. Deploy. Open your Render URL → create the first account (it becomes owner).
-   The **admin console** is at `https://your-app.onrender.com/atlas-admin`
+   The **admin console** is at `https://your-app.onrender.com/atlas-operations`
    (single-port hosts use `ADMIN_MOUNT=path`; locally it stays on its own port).
 4. In the admin console → *Platform*, set the **public base URL** to your
    Render URL — share links and OAuth callbacks use it.

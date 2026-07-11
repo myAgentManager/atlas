@@ -11,6 +11,7 @@ import Integrations from './pages/Integrations.jsx';
 import Business from './pages/Business.jsx';
 import Customers from './pages/Customers.jsx';
 import Overview from './pages/Overview.jsx';
+import Knowledge from './pages/Knowledge.jsx';
 import Nav from './Nav.jsx';
 import { Toaster } from './toast.jsx';
 import { Reader } from './reader.jsx';
@@ -98,6 +99,7 @@ export default function App() {
     view === 'business' ? <Business /> :
     view === 'customers' ? <Customers /> :
     view === 'dashboard' ? <Overview user={user} gotoView={setView} /> :
+    view === 'knowledge' ? <Knowledge /> :
     <Dashboard agent={agent} user={user} gotoView={setView} />;
 
   return (

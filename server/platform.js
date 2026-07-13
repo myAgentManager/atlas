@@ -9,6 +9,8 @@ const DEFAULTS = {
   adminAllowedIps: [], // extra IPs (beyond env ADMIN_ALLOWED_IPS) allowed into Operations
   google: { enabled: false, clientId: '', clientSecret: '' },
   apple: { enabled: false, serviceId: '', teamId: '', keyId: '', privateKey: '' },
+  // Stripe billing keys — set here in Operations (env vars still work as fallback).
+  stripe: { secretKey: '', publishableKey: '', webhookSecret: '', priceStarter: '', pricePro: '', priceGrowth: '' },
   // Messaging + 2SV channels, all admin-controlled and independently switchable.
   channels: {
     sms: { enabled: false, sid: '', token: '', from: '' },   // Twilio: notifications + SMS 2SV
@@ -22,6 +24,7 @@ const DEFAULTS = {
 const saved = getDoc('platform', {});
 let state = {
   ...DEFAULTS, ...saved,
+  stripe: { ...DEFAULTS.stripe, ...(saved.stripe || {}) },
   channels: { ...DEFAULTS.channels, ...(saved.channels || {}),
     sms: { ...DEFAULTS.channels.sms, ...(saved.channels?.sms || {}) },
     email: { ...DEFAULTS.channels.email, ...(saved.channels?.email || {}) },
@@ -56,6 +59,7 @@ export function setPlatform(patch = {}) {
     ...(Array.isArray(patch.adminAllowedIps) ? { adminAllowedIps: patch.adminAllowedIps.map((s) => String(s).trim()).filter(Boolean).slice(0, 50) } : {}),
     google: { ...state.google, ...(patch.google || {}) },
     apple: { ...state.apple, ...(patch.apple || {}) },
+    stripe: { ...state.stripe, ...(patch.stripe || {}) },
     channels: {
       ...state.channels,
       sms: { ...state.channels.sms, ...(pc.sms || {}) },

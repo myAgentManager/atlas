@@ -4,10 +4,23 @@
 // you wire real keys. Plan → tool-deck entitlements live in config.plans.
 import { config } from './config.js';
 import { getUser, updateUser, publicUser, audit } from './auth.js';
+import { getPlatform } from './platform.js';
 
 import { CAPABILITIES } from './catalog.js';
 
-export const billingLive = () => Boolean(config.stripe.secret);
+// Keys pasted into Operations → Payments win; env vars remain the fallback,
+// so going live never needs a redeploy.
+const stripeCfg = () => {
+  const p = getPlatform().stripe || {};
+  return {
+    secret: p.secretKey || config.stripe.secret,
+    priceStarter: p.priceStarter || config.stripe.priceStarter,
+    pricePro: p.pricePro || config.stripe.pricePro,
+    priceGrowth: p.priceGrowth || config.stripe.priceGrowth,
+  };
+};
+
+export const billingLive = () => Boolean(stripeCfg().secret);
 export const plans = () => Object.values(config.plans).map((p) => ({ ...p, capabilities: capsForPlan(p) }));
 export function planFor(user) {
   return config.plans[user?.subscription?.plan || user?.plan || 'free'] || config.plans.free;
@@ -42,7 +55,7 @@ async function stripe(path, method = 'POST', form = null) {
   const res = await fetch(`https://api.stripe.com/v1/${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${config.stripe.secret}`,
+      Authorization: `Bearer ${stripeCfg().secret}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: form ? new URLSearchParams(form) : undefined,
@@ -65,9 +78,10 @@ export async function startCheckout(user, planId, baseUrl) {
     return { url: `${baseUrl}/?billing=success&demo=1`, demo: true };
   }
 
-  const priceMap = { starter: config.stripe.priceStarter, pro: config.stripe.pricePro, growth: config.stripe.priceGrowth };
+  const sc = stripeCfg();
+  const priceMap = { starter: sc.priceStarter, pro: sc.pricePro, growth: sc.priceGrowth };
   const price = priceMap[planId];
-  if (!price) throw new Error(`No Stripe price configured for ${planId}. Add STRIPE_PRICE_${planId.toUpperCase()}.`);
+  if (!price) throw new Error(`No Stripe price configured for ${planId}. Add it in Operations → Payments (or STRIPE_PRICE_${planId.toUpperCase()}).`);
 
   let customer = user.subscription?.stripeCustomer;
   if (!customer) {

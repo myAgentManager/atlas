@@ -53,7 +53,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <div className="orb-plate">{name}</div>
           <div className="hero-stats">
             <Stat value="24/7" label="On duty" />
-            <Stat value={10} label="Integrations" />
+            <Stat value={13} label="Integrations" />
             <Stat value={0} label="External AI calls" />
           </div>
         </div>
@@ -74,9 +74,9 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
             Name an agent and pick its skills: email, live chat, bookings, orders,
             phone calls. Connect the tools you already use.
           </Step>
-          <Step n="3" title="They handle customers" icon="check">
-            Agents answer, book, and follow up around the clock — and hand off to a
-            real person the moment something needs one.
+          <Step n="3" title="Did I say 3?" icon="check">
+            There is no step three. Your agents are already answering, booking, and
+            following up — and they hand off to a real person the moment something needs one.
           </Step>
         </div>
       </section>
@@ -108,8 +108,8 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
         </div>
         <div className="integ-strip">
           {[['file', 'Email (IMAP)'], ['send', 'Email (SMTP)'], ['chat', 'Twilio SMS & Voice'], ['plug', 'PBX / VoIP extension'],
-            ['calendar', 'Calendar'], ['chat', 'WhatsApp'], ['chat', 'Slack'], ['globe', 'Website knowledge'],
-            ['file', 'Google Sheets'], ['spark', 'Stripe payments']].map(([icon, label], i) => (
+            ['calendar', 'Calendar'], ['chat', 'WhatsApp'], ['chat', 'Instagram DMs'], ['chat', 'Slack'], ['globe', 'Website knowledge'],
+            ['file', 'Google Sheets'], ['bolt', 'Square POS'], ['spark', 'Stripe payments']].map(([icon, label], i) => (
             <span key={i} className="integ-chip"><Icon name={icon} size={15} /> {label}</span>
           ))}
         </div>
@@ -152,7 +152,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           </div>
         </div>
         <div className="atlas-ticker">
-          <span className="ticker-item"><b>10</b> integrations</span>
+          <span className="ticker-item"><b>13</b> integrations</span>
           <span className="ticker-item"><b>14</b> agent capabilities</span>
           <span className="ticker-item"><b>every</b> language</span>
           <span className="ticker-item"><b>0</b> external AI calls</span>

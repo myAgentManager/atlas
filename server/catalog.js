@@ -86,6 +86,24 @@ export const CONNECTORS = {
     fields: [{ key: 'key', label: 'Stripe secret key', secret: true, placeholder: 'sk_live_…' }],
     required: ['key'],
   },
+  instagram: {
+    id: 'instagram', name: 'Instagram DMs', icon: 'chat',
+    blurb: 'Let agents answer Instagram direct messages through your Meta app.',
+    fields: [
+      { key: 'pageId', label: 'Instagram business account ID' },
+      { key: 'token', label: 'Access token', secret: true },
+    ],
+    required: ['pageId', 'token'],
+  },
+  square: {
+    id: 'square', name: 'Square POS', icon: 'bolt',
+    blurb: 'Let agents check items, prices, and orders from your Square catalog.',
+    fields: [
+      { key: 'token', label: 'Access token', secret: true },
+      { key: 'location', label: 'Location ID', placeholder: 'L…' },
+    ],
+    required: ['token'],
+  },
   pbx: {
     id: 'pbx', name: 'PBX / VoIP extension', icon: 'plug',
     blurb: "Give myAgent an extension on your phone system. Point your PBX's IVR at the webhook and the agent speaks to callers.",
@@ -94,9 +112,9 @@ export const CONNECTORS = {
       { key: 'ext', label: 'Extension', placeholder: '200' },
       { key: 'user', label: 'Auth user', placeholder: 'myagent' },
       { key: 'secret', label: 'SIP secret', secret: true },
-      { key: 'token', label: 'IVR webhook token (set the same on your PBX)', secret: true, placeholder: 'a long random string' },
+      { key: 'token', label: 'IVR token (leave blank — Atlas generates one)', secret: true, placeholder: 'auto-generated on save' },
     ],
-    required: ['host', 'ext', 'token'],
+    required: ['host', 'ext'],
   },
 };
 

@@ -1,6 +1,7 @@
 // Per-account integration tools (connector credentials). A business fills these
 // in once; their agents draw on them. Secrets are stored but never returned to
 // the client in full — the UI only sees which connectors are "connected".
+import { randomBytes } from 'node:crypto';
 import { getDoc, saveDoc } from './db.js';
 import { CONNECTORS, connectorStatus } from './catalog.js';
 
@@ -13,6 +14,8 @@ export function saveConnector(userId, id, fields) {
   if (!CONNECTORS[id]) throw new Error('Unknown connector.');
   const u = raw(userId);
   u[id] = { ...(u[id] || {}), ...fields };
+  // PBX: nobody should have to invent a webhook token — generate one.
+  if (id === 'pbx' && !u[id].token) u[id].token = randomBytes(18).toString('base64url');
   save();
   return connectorStatus(u)[id];
 }

@@ -68,6 +68,7 @@ export const api = {
   saveConnector: (id, fields) => send(`/api/connectors/${id}`, 'PUT', fields),
   clearConnector: (id) => send(`/api/connectors/${id}`, 'DELETE'),
   archetypes: () => get('/api/archetypes'),
+  voipSetup: () => get('/api/voip/setup'),
   agents: () => get('/api/agents'),
   createAgent: (body) => post('/api/agents', body),
   updateAgent: (id, body) => send(`/api/agents/${id}`, 'PATCH', body),

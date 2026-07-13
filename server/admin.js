@@ -282,6 +282,18 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   <button class="btn" onclick="saveChannels()">Save channels</button></div>
 </div></div>
 
+<div class="panel"><h2>${LOCK_SVG} Payments — Stripe</h2>
+<p class="hint" style="margin-bottom:14px">With no secret key, billing runs in <b>demo mode</b> — plan switches are instant and free. Paste live keys and price IDs to charge for real; takes effect immediately, no redeploy. <b id="s_mode"></b></p>
+<div class="pform"><div class="prov">
+  <div class="two"><label>Secret key <input id="s_secret" type="password" placeholder="sk_live_…"></label>
+  <label>Publishable key <input id="s_pub" placeholder="pk_live_…"></label></div>
+  <label>Webhook signing secret <input id="s_wh" type="password" placeholder="whsec_…"></label>
+  <div class="two"><label>Price ID — Starter ($49) <input id="s_ps" placeholder="price_…"></label>
+  <label>Price ID — Pro ($99) <input id="s_pp" placeholder="price_…"></label></div>
+  <label>Price ID — Growth ($199) <input id="s_pg" placeholder="price_…"></label>
+  <div style="text-align:right"><span id="s_flash" style="color:var(--green);font-size:13px;margin-right:12px"></span>
+  <button class="btn" onclick="saveStripe()">Save payments</button></div>
+</div></div></div>
 <div class="panel"><h2>${LOCK_SVG} Accounts</h2><table id="users"></table></div>
 <div class="panel"><h2>${LOCK_SVG} All tasks</h2><table id="tasks"></table></div>
 <div class="panel"><h2>${LOCK_SVG} Audit log</h2><div class="log" id="log"></div></div>
@@ -323,7 +335,19 @@ async function loadPlatform(){
   $('#sms_on').checked=!!sms.enabled;$('#sms_sid').value=sms.sid||'';$('#sms_token').value=sms.token||'';$('#sms_from').value=sms.from||'';
   $('#em_on').checked=!!em.enabled;$('#em_host').value=em.host||'';$('#em_port').value=em.port||'';$('#em_user').value=em.user||'';$('#em_from').value=em.from||'';$('#em_pass').value=em.pass||'';
   $('#tv_totp').checked=c.totp2sv?c.totp2sv.enabled!==false:true;$('#tv_sms').checked=!!(c.sms2sv&&c.sms2sv.enabled);$('#tv_email').checked=!!(c.email2sv&&c.email2sv.enabled);
+  const st=p.stripe||{};
+  $('#s_secret').value=st.secretKey||'';$('#s_pub').value=st.publishableKey||'';$('#s_wh').value=st.webhookSecret||'';
+  $('#s_ps').value=st.priceStarter||'';$('#s_pp').value=st.pricePro||'';$('#s_pg').value=st.priceGrowth||'';
+  $('#s_mode').textContent=st.secretKey?'Billing is LIVE.':'Billing is in demo mode.';
   updateCb();
+}
+async function saveStripe(){
+  const body={stripe:{secretKey:$('#s_secret').value.trim(),publishableKey:$('#s_pub').value.trim(),webhookSecret:$('#s_wh').value.trim(),
+    priceStarter:$('#s_ps').value.trim(),pricePro:$('#s_pp').value.trim(),priceGrowth:$('#s_pg').value.trim()}};
+  const r=await fetch(BASE+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.status===401)return location.reload();
+  $('#s_mode').textContent=body.stripe.secretKey?'Billing is LIVE.':'Billing is in demo mode.';
+  $('#s_flash').textContent='Saved.';setTimeout(()=>$('#s_flash').textContent='',2500);
 }
 async function saveChannels(){
   const body={channels:{

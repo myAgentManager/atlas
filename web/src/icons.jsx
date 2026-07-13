@@ -111,7 +111,7 @@ export function Mark({ size = 28, spin = false }) {
         {/* glass reflection: upper window with a curved belly */}
         <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z"
           fill={`url(#gloss${uid})`} opacity="0.8" />
-        <ellipse cx="22" cy="12.5" rx="7.5" ry="4" fill="#ffffff" opacity="0.9" />
+        <ellipse className="mark-glint" cx="22" cy="12.5" rx="7.5" ry="4" fill="#ffffff" opacity="0.9" />
       </g>
 
       <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" strokeOpacity="0.8" strokeWidth="1" />

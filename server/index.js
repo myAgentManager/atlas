@@ -20,6 +20,7 @@ import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { archetypeList } from './atlas/archetypes.js';
 import * as kb from './atlas/kb.js';
 import * as voip from './voip.js';
+import { digestTick } from './digest.js';
 import { fetchRecent } from './imap.js';
 import { sendVia } from './email.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
@@ -256,7 +257,7 @@ app.post('/api/me/2sv/method/start', auth.requireAuth, async (req, res) => {
   const code = auth.genCode();
   try {
     if (method === 'email') {
-      await sendEmail({ to: dest, subject: 'Your Atlas Network verification code', text: `Your verification code is: ${code}\n\nEnter it in Settings to turn on email sign-in codes. It expires in 5 minutes.` });
+      await sendEmail({ to: dest, subject: 'Your Atlas Network verification code', text: `Your verification code is: ${code}\n\nEnter it to turn on email sign-in codes for your account. It expires in 5 minutes.` });
     } else {
       const r = await sendSms(dest, `Atlas Network verification code: ${code} (expires in 5 minutes)`);
       if (!r.ok) throw new Error(r.error || 'SMS send failed');
@@ -274,6 +275,8 @@ app.post('/api/me/2sv/method/confirm', auth.requireAuth, (req, res) => {
   if (!auth.codeMatches(req.body?.code, e.code)) return bad(res, 401, 'That code didn\'t match.');
   enrolls.delete(req.user.id);
   auth.setSecondMethod(req.user, e.method);
+  // enrolling proved the factor on this browser — trust it like a 2SV pass
+  auth.setCookie(res, 'ma_trust', auth.trustToken(req.user.id), { maxAge: auth.TRUST_MS, secure: req.secure });
   res.json({ user: auth.publicUser(auth.getUser(req.user.id)) });
 });
 
@@ -884,6 +887,23 @@ app.post('/api/voip/ivr', express.urlencoded({ extended: false }), (req, res) =>
   res.json(out);
 });
 
+// Everything a business needs to point their phone system at their agent —
+// exact URLs with their token baked in. Rendered on the Integrations page so
+// setup is copy-paste, not webhook archaeology.
+app.get('/api/voip/setup', auth.requireAuth, (req, res) => {
+  const cfg = connectors.getConnectorConfig(req.user.id, 'pbx');
+  if (!cfg?.token) return bad(res, 400, 'Save the PBX / VoIP extension connector first.');
+  const base = (getPlatform().baseUrl || `http://localhost:${config.port}`).replace(/\/+$/, '');
+  const url = `${base}/api/voip/ivr`;
+  res.json({
+    url,
+    token: cfg.token,
+    ext: cfg.ext || '',
+    twilio: `${url}?format=xml&token=${encodeURIComponent(cfg.token)}`,
+    curl: `curl -X POST '${url}' -H 'Content-Type: application/json' \\\n  -d '{"token":"${cfg.token}","callId":"CALL_ID","caller":"+15550000000","text":"what the caller said"}'`,
+  });
+});
+
 // ============================================================================
 // health + admin console
 // ============================================================================
@@ -974,6 +994,9 @@ async function emailTick() {
   } finally { pollingEmail = false; }
 }
 if (EMAIL_MIN > 0) setInterval(emailTick, EMAIL_MIN * 60_000);
+
+// Morning digest — each owner gets yesterday's numbers + top knowledge gap.
+setInterval(() => digestTick().catch(() => {}), 60 * 60_000);
 
 app.listen(config.port, () => {
   const e = engineInfo();

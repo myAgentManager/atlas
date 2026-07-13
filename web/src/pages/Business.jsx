@@ -20,6 +20,19 @@ export default function Business() {
   const effectiveArch = archetypes.find((a) => a.id === (p?.type || p?.typeDetected));
 
   const field = (k) => ({ value: p?.[k] || '', onChange: (e) => setP({ ...p, [k]: e.target.value }) });
+
+  // One-click "typical setup" for this kind of business: fills whatever's
+  // still empty (never overwrites what the owner already wrote) and adds the
+  // pack's FAQ suggestions. The old-fashioned way — typing it all — still works.
+  const loadPack = () => {
+    const pack = effectiveArch?.pack;
+    if (!pack) return;
+    setP({ ...p, services: p.services || pack.services, about: p.about || pack.about });
+    const have = new Set(faqs.map((f) => f.q.trim().toLowerCase()).filter(Boolean));
+    const add = (pack.faqs || []).filter((f) => !have.has(f.q.toLowerCase()));
+    if (add.length) setFaqs([...faqs.filter((f) => f.q.trim() || f.a.trim()), ...add]);
+    toast(`Loaded the ${effectiveArch.name.toLowerCase()} starter pack — tweak anything, then save.`, 'ok');
+  };
   const saveProfile = () => { setSavingP(true); api.setProfile(p).then((np) => { setP(np); toast('Business details saved.', 'ok'); }).catch((e) => toast(e.message, 'err')).finally(() => setSavingP(false)); };
   const saveFaqs = () => { setSavingF(true); api.setFaqs(faqs.filter((f) => f.q.trim())).then(() => toast('FAQ saved.', 'ok')).catch((e) => toast(e.message, 'err')).finally(() => setSavingF(false)); };
   const setFaq = (i, k, v) => setFaqs(faqs.map((f, j) => j === i ? { ...f, [k]: v } : f));
@@ -46,7 +59,17 @@ export default function Business() {
             {archetypes.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </label>
-        {effectiveArch && <p className="type-note"><Icon name="brain" size={13} /> {grasp(effectiveArch)}</p>}
+        {effectiveArch && (
+          <p className="type-note">
+            <Icon name="brain" size={13} />
+            <span>
+              {grasp(effectiveArch)}
+              {effectiveArch.pack?.services && (
+                <> <button className="text-link pack-link" onClick={loadPack}>Load a typical {effectiveArch.name.toLowerCase()} setup →</button></>
+              )}
+            </span>
+          </p>
+        )}
         <label className="auth-label">About — what should agents know?<textarea className="field textarea" rows={3} {...field('about')} placeholder="A cozy neighborhood cafe specializing in single-origin espresso and fresh pastries. We also cater events." /></label>
         <div className="biz-grid">
           <label className="auth-label">Hours<input className="field" {...field('hours')} placeholder="Mon–Sat 7am–6pm, Sun 8am–2pm" /></label>

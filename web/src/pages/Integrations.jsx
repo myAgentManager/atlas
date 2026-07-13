@@ -35,6 +35,31 @@ export default function Integrations() {
     toast('Disconnected.');
   };
 
+  // Copy-paste phone-system setup, with this account's token baked in — shown
+  // inside the PBX card once it's connected. No webhook archaeology required.
+  function PbxSetup() {
+    const [info, setInfo] = useState(null);
+    useEffect(() => { api.voipSetup().then(setInfo).catch(() => {}); }, []);
+    if (!info) return null;
+    const copy = (t, label) => navigator.clipboard.writeText(t).then(() => toast(`${label} copied.`, 'ok'));
+    return (
+      <div className="pbx-setup">
+        <div className="pbx-setup-title"><Icon name="check" size={13} /> Your extension is ready — point your phone system at it:</div>
+        <div className="pbx-row">
+          <b>Twilio</b>
+          <span>Set your number's Voice webhook (HTTP POST) to:</span>
+          <code className="pbx-code" onClick={() => copy(info.twilio, 'Twilio URL')}>{info.twilio}</code>
+        </div>
+        <div className="pbx-row">
+          <b>Any PBX / IVR (FreePBX, 3CX, Asterisk…)</b>
+          <span>Have your IVR POST each caller utterance and speak back the reply's <code>say</code> text:</span>
+          <code className="pbx-code" onClick={() => copy(info.curl, 'Example request')}>{info.curl}</code>
+        </div>
+        <p className="dim-note">Click a snippet to copy it. First request of a call (no <code>text</code>) returns the pickup greeting; replies include <code>hangup</code> when the caller says goodbye.</p>
+      </div>
+    );
+  }
+
   if (!catalog) return <div className="integrations"><div className="empty">Loading tools…</div></div>;
   const list = Object.values(catalog.connectors);
   const connectedCount = Object.values(state).filter((s) => s.connected).length;
@@ -66,13 +91,14 @@ export default function Integrations() {
                 </div>
               </div>
               {expanded && (
-                <div className="conn-form">
+                <div className="conn-form" onClick={(e) => e.stopPropagation()}>
                   {c.fields.map((f) => (
                     <label key={f.key} className="auth-label">{f.label}
                       <input className="field" type={f.secret ? 'password' : 'text'} placeholder={f.placeholder || ''}
                         value={draft[f.key] || ''} onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} />
                     </label>
                   ))}
+                  {c.id === 'pbx' && st.connected && <PbxSetup />}
                   <div className="conn-actions">
                     {st.connected && <button className="text-link danger" onClick={() => disconnect(c.id)}>Disconnect</button>}
                     <button className="gel-btn" onClick={() => setOpenId(null)}>Cancel</button>

@@ -89,8 +89,8 @@ export default function Login({ agent, onDone, onHome }) {
             <h1 className="auth-h1">{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
             <p className="auth-sub">
               {mode === 'signup'
-                ? 'Your own agent, your own workspace, on this server.'
-                : 'Sign in to reach your Command Deck.'}
+                ? 'Put an AI agent on your business in minutes.'
+                : 'Sign in to check on your agents.'}
             </p>
             {mode === 'signup' && (
               <label className="auth-label">Name

@@ -65,7 +65,7 @@ export default function Welcome({ agent, user, onDone, onGo }) {
         {step === 0 && (
           <div className="wizard-body">
             <h1>Welcome to myAgent</h1>
-            <p className="wizard-sub">Let's set up your AI front desk. First — what's your business called?</p>
+            <p className="wizard-sub">Let's get your business onto the Atlas Network. First — what's it called?</p>
             <input className="field wizard-input" autoFocus placeholder="e.g. Luna Beans Cafe" value={bizName}
               onChange={(e) => setBizName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName()} />
             <div className="cap-pick-label">What kind of business is it? <span className="dim-note-inline">(or skip — Atlas will work it out)</span></div>
@@ -92,6 +92,11 @@ export default function Welcome({ agent, user, onDone, onGo }) {
             <label className="auth-label">Opening hours
               <input className="field" placeholder="e.g. Mon–Sat 7am–6pm, Sun 8am–2pm" value={hours} onChange={(e) => setHours(e.target.value)} />
             </label>
+            <div className="preset-row">
+              {['Mon–Fri 9am–5pm', 'Mon–Sat 8am–6pm', 'Every day 8am–8pm', 'Tue–Sun 11am–10pm'].map((h) => (
+                <button key={h} type="button" className={`preset-chip ${hours === h ? 'on' : ''}`} onClick={() => setHours(h)}>{h}</button>
+              ))}
+            </div>
             <label className="auth-label">Business phone
               <input className="field" placeholder="+1 555 555 0100" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveBasics()} />
             </label>
@@ -151,29 +156,68 @@ export default function Welcome({ agent, user, onDone, onGo }) {
   );
 }
 
-// Required TOTP setup — every account, staff included.
+// Required 2SV setup — every account, staff included. Email codes are the
+// default (a 6-digit code lands in your inbox); an authenticator app is the
+// fallback for accounts that prefer it or when the mail channel is down.
 function SecurityStep({ onBack, onDone }) {
+  const [mode, setMode] = useState('email'); // email | totp
+  const [hint, setHint] = useState('');
+  const [sendErr, setSendErr] = useState('');
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { api.setup2sv().then(setSetup).catch((e) => toast(e.message, 'err')); }, []);
 
-  const enable = async () => {
+  const sendCode = () => {
+    setSendErr('');
+    api.start2svMethod('email')
+      .then((r) => setHint(r.hint || 'your email'))
+      .catch((e) => { setSendErr(e.message); setMode('totp'); });
+  };
+  useEffect(() => { sendCode(); }, []);
+  useEffect(() => { if (mode === 'totp' && !setup) api.setup2sv().then(setSetup).catch((e) => toast(e.message, 'err')); }, [mode]);
+
+  const confirm = async () => {
     setBusy(true);
-    try { await api.enable2sv(code); toast('Two-step verification is on.', 'ok'); onDone(); }
-    catch (e) { toast(e.message, 'err'); }
+    try {
+      if (mode === 'email') { await api.confirm2svMethod(code); }
+      else { await api.enable2sv(code); }
+      toast('Two-step verification is on.', 'ok');
+      onDone();
+    } catch (e) { toast(e.message, 'err'); }
     finally { setBusy(false); }
   };
 
   return (
     <div className="wizard-body">
       <h1>Secure your account</h1>
-      <p className="wizard-sub">Two-step verification is required for every account. Scan the secret with any authenticator app, then enter the 6-digit code. You won't be asked again on this device for 30 days.</p>
-      <div className="secret-box mono">{setup?.secret || '…'}</div>
-      <input className="field code-field wizard-input" inputMode="numeric" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} />
+      {mode === 'email' ? (
+        <>
+          <p className="wizard-sub">
+            Two-step verification is required for every account. We just emailed a 6-digit code
+            to <b>{hint || 'your email'}</b> — enter it below. You won't be asked again on this
+            device for 30 days.
+          </p>
+          <input className="field code-field wizard-input" autoFocus inputMode="numeric" maxLength={6} placeholder="000000" value={code}
+            onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && code.length === 6 && confirm()} />
+          <div className="sec-links">
+            <button className="text-link" onClick={sendCode}>Resend code</button>
+            <button className="text-link" onClick={() => setMode('totp')}>Use an authenticator app instead</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="wizard-sub">
+            {sendErr ? `Email codes aren't available right now (${sendErr}) — ` : ''}
+            Scan the secret with any authenticator app, then enter the 6-digit code.
+          </p>
+          <div className="secret-box mono">{setup?.secret || '…'}</div>
+          <input className="field code-field wizard-input" inputMode="numeric" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} />
+          {!sendErr && <div className="sec-links"><button className="text-link" onClick={() => { setMode('email'); setCode(''); sendCode(); }}>Email me a code instead</button></div>}
+        </>
+      )}
       <div className="wizard-foot">
         <button className="gel-btn" onClick={onBack}>Back</button>
-        <button className="gel-btn gel-primary" disabled={busy || code.length < 6} onClick={enable}>Turn on 2SV <Icon name="check" size={15} /></button>
+        <button className="gel-btn gel-primary" disabled={busy || code.length < 6} onClick={confirm}>Turn on 2SV <Icon name="check" size={15} /></button>
       </div>
     </div>
   );
@@ -195,7 +239,7 @@ function Finale({ bizName, onContinue }) {
       [10, `Studying ${bizName || 'your business'}…`],
       [26, 'Working out what kind of business you run…'],
       [44, 'Seeding your knowledge base…'],
-      [62, 'Preparing your front desk…'],
+      [62, 'Preparing your agents…'],
       [80, 'Connecting to the Atlas Network…'],
       [93, 'Final checks…'],
     ];
@@ -226,7 +270,6 @@ function Finale({ bizName, onContinue }) {
       {stage === 'welcome' && (
         <div className="finale-welcome">
           <h1>Welcome to myAgent</h1>
-          <p>{bizName ? `${bizName} has a front desk now.` : 'Your front desk is live.'}</p>
           <button className="gel-btn gel-primary big" onClick={onContinue}>Continue <Icon name="arrow" size={16} /></button>
         </div>
       )}

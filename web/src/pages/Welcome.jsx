@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
+import { grasp } from '../understanding.js';
 
 // First-run setup wizard. Every new business names itself, can optionally wire
 // up a tool or two, and — unless it's an Atlas Networks staff account — must
@@ -10,18 +11,25 @@ export default function Welcome({ agent, user, onDone, onGo }) {
   const isStaff = user?.founder || /@atlasnetworks\.com$/i.test(user?.email || '');
   const [step, setStep] = useState(0);
   const [bizName, setBizName] = useState('');
+  const [bizType, setBizType] = useState('');
+  const [archetypes, setArchetypes] = useState([]);
   const [catalog, setCatalog] = useState(null);
   const [conns, setConns] = useState({});
 
-  useEffect(() => { api.catalog().then(setCatalog).catch(() => {}); api.connectors().then(setConns).catch(() => {}); }, []);
+  useEffect(() => {
+    api.catalog().then(setCatalog).catch(() => {});
+    api.connectors().then(setConns).catch(() => {});
+    api.archetypes().then(setArchetypes).catch(() => {});
+  }, []);
 
   const steps = ['Business', 'Tools', isStaff ? null : 'Security'].filter(Boolean);
 
   const saveName = async () => {
     if (!bizName.trim()) return toast('Give your business a name to continue.', 'err');
-    await api.setProfile({ name: bizName.trim() }).catch(() => {});
+    await api.setProfile({ name: bizName.trim(), type: bizType }).catch(() => {});
     setStep(1);
   };
+  const pickedArch = archetypes.find((a) => a.id === bizType);
   const finish = () => { api.updateMe({ welcomed: true }).catch(() => {}); onDone(); };
 
   return (
@@ -42,6 +50,16 @@ export default function Welcome({ agent, user, onDone, onGo }) {
             <p className="wizard-sub">Let's set up your AI front desk. First — what's your business called?</p>
             <input className="field wizard-input" autoFocus placeholder="e.g. Luna Beans Cafe" value={bizName}
               onChange={(e) => setBizName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName()} />
+            <div className="cap-pick-label">What kind of business is it? <span className="dim-note-inline">(or skip — Atlas will work it out)</span></div>
+            <div className="type-grid">
+              {archetypes.map((a) => (
+                <button key={a.id} type="button" className={`type-card ${bizType === a.id ? 'on' : ''}`}
+                  onClick={() => setBizType(bizType === a.id ? '' : a.id)}>
+                  <Icon name={a.icon} size={15} /> <span>{a.name}</span>
+                </button>
+              ))}
+            </div>
+            {pickedArch && <p className="type-note"><Icon name="brain" size={13} /> {grasp(pickedArch)}</p>}
             <div className="wizard-foot">
               <span />
               <button className="gel-btn gel-primary" onClick={saveName}>Continue <Icon name="arrow" size={15} /></button>

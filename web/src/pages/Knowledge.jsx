@@ -8,13 +8,19 @@ import { toast } from '../toast.jsx';
 // customer asks that it can't answer becomes a "gap" for you to teach it.
 export default function Knowledge() {
   const [k, setK] = useState(null);
+  const [arch, setArch] = useState(null); // Atlas's read on what kind of business this is
   const [topic, setTopic] = useState('');
   const [fact, setFact] = useState('');
   const [studying, setStudying] = useState(false);
   const [answers, setAnswers] = useState({});
 
   const load = () => { api.knowledge().then(setK).catch(() => {}); };
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    Promise.all([api.business(), api.archetypes()]).then(([b, list]) => {
+      setArch(list.find((a) => a.id === (b.profile?.type || b.profile?.typeDetected)) || null);
+    }).catch(() => {});
+  }, []);
 
   const add = async () => {
     if (!fact.trim()) return;
@@ -43,6 +49,7 @@ export default function Knowledge() {
         <div>
           <h1>Atlas Knowledge</h1>
           <p>What your agents know. It grows from your business details, your FAQ, and your website — and from every question customers ask.</p>
+          {arch && <p className="type-note"><Icon name="brain" size={13} /> Atlas understands: <b>{arch.name}</b> — {arch.bookable ? `runs on ${arch.bookNoun}s` : 'walk-in, nothing to book'}</p>}
         </div>
         <button className="gel-btn gel-primary" disabled={studying} onClick={study}>
           <Icon name="globe" size={15} /> {studying ? 'Studying your site…' : 'Study my website'}

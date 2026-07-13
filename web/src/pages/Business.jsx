@@ -2,16 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { toast } from '../toast.jsx';
+import { grasp } from '../understanding.js';
 
 // What the agents learn: the business profile, contact details, human routing,
 // and the FAQ. A clean form panel, like the integrations deck.
 export default function Business() {
   const [p, setP] = useState(null);
   const [faqs, setFaqs] = useState([]);
+  const [archetypes, setArchetypes] = useState([]);
   const [savingP, setSavingP] = useState(false);
   const [savingF, setSavingF] = useState(false);
 
-  useEffect(() => { api.business().then((b) => { setP(b.profile); setFaqs(b.faqs.length ? b.faqs : [{ q: '', a: '' }]); }).catch(() => {}); }, []);
+  useEffect(() => {
+    api.business().then((b) => { setP(b.profile); setFaqs(b.faqs.length ? b.faqs : [{ q: '', a: '' }]); }).catch(() => {});
+    api.archetypes().then(setArchetypes).catch(() => {});
+  }, []);
+  const effectiveArch = archetypes.find((a) => a.id === (p?.type || p?.typeDetected));
 
   const field = (k) => ({ value: p?.[k] || '', onChange: (e) => setP({ ...p, [k]: e.target.value }) });
   const saveProfile = () => { setSavingP(true); api.setProfile(p).then((np) => { setP(np); toast('Business details saved.', 'ok'); }).catch((e) => toast(e.message, 'err')).finally(() => setSavingP(false)); };
@@ -32,6 +38,15 @@ export default function Business() {
           <label className="auth-label">Business name<input className="field" {...field('name')} placeholder="Luna Beans Cafe" /></label>
           <label className="auth-label">Tagline<input className="field" {...field('tagline')} placeholder="Specialty coffee, done right" /></label>
         </div>
+        <label className="auth-label">Business type — how Atlas reads customer intent
+          <select className="select" value={p.type || ''} onChange={(e) => setP({ ...p, type: e.target.value })}>
+            <option value="">
+              {p.typeDetected ? `Auto — Atlas detected: ${archetypes.find((a) => a.id === p.typeDetected)?.name || p.typeDetected}` : 'Auto — let Atlas detect it'}
+            </option>
+            {archetypes.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </label>
+        {effectiveArch && <p className="type-note"><Icon name="brain" size={13} /> {grasp(effectiveArch)}</p>}
         <label className="auth-label">About — what should agents know?<textarea className="field textarea" rows={3} {...field('about')} placeholder="A cozy neighborhood cafe specializing in single-origin espresso and fresh pastries. We also cater events." /></label>
         <div className="biz-grid">
           <label className="auth-label">Hours<input className="field" {...field('hours')} placeholder="Mon–Sat 7am–6pm, Sun 8am–2pm" /></label>

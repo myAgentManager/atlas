@@ -76,7 +76,18 @@ function CreateAgent({ catalog, caps, onClose, onCreated }) {
   const [languages, setLanguages] = useState('English');
   const [picked, setPicked] = useState(new Set(['webchat', 'faq']));
   const [busy, setBusy] = useState(false);
+  const [arch, setArch] = useState(null); // what kind of business Atlas knows this is
   const capList = Object.values(catalog.capabilities);
+
+  // Preselect the capabilities that fit this KIND of business — Atlas already
+  // knows a café doesn't take bookings but a salon lives on appointments.
+  useEffect(() => {
+    Promise.all([api.business(), api.archetypes()]).then(([b, list]) => {
+      const t = b.profile?.type || b.profile?.typeDetected;
+      const a = list.find((x) => x.id === t);
+      if (a) { setPicked(new Set(a.caps)); setArch(a); }
+    }).catch(() => {});
+  }, []);
 
   const toggle = (id) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const create = async () => {
@@ -98,6 +109,7 @@ function CreateAgent({ catalog, caps, onClose, onCreated }) {
           <label className="auth-label">What should it do &amp; know?<textarea className="field textarea" rows={3} placeholder="Warm, professional host for our cafe. Knows our menu and hours." value={role} onChange={(e) => setRole(e.target.value)} /></label>
           <label className="auth-label">Languages<input className="field" placeholder="English, Spanish" value={languages} onChange={(e) => setLanguages(e.target.value)} /></label>
           <div className="cap-pick-label">Capabilities</div>
+          {arch && <p className="type-note"><Icon name="brain" size={12} /> Preset for a {arch.name.toLowerCase()} — {arch.bookable ? `bookings on (${arch.bookNoun}s)` : 'walk-in, so no booking pitch'}. Tweak as you like.</p>}
           <div className="cap-pick">
             {capList.map((c) => {
               const locked = !caps.includes(c.id);

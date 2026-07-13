@@ -112,6 +112,20 @@ export async function studyWebsite(userId, url, fetchPage) {
   return { added, pagesRead: read };
 }
 
+// Atlas's own understanding of this KIND of business — starter facts about how
+// visits/bookings work here, filed before the owner teaches it anything.
+export function seedArchetype(userId, arch) {
+  const n = node(userId);
+  // the business changed type — Atlas's old built-in understanding no longer applies
+  n.facts = n.facts.filter((f) => f.source !== 'atlas');
+  let added = 0;
+  for (const s of arch?.starters || []) {
+    if (addFact(userId, { topic: s.topic, fact: s.fact, source: 'atlas' })) added++;
+  }
+  save();
+  return added;
+}
+
 // Absorb the owner's profile + FAQ as first-class knowledge.
 export function absorbBusiness(userId, profile, faqs) {
   let added = 0;

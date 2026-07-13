@@ -1308,3 +1308,21 @@ body {
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes typedot { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 0.9; } }
 @media (max-width: 900px) { .kb-tiles, .kb-grid { grid-template-columns: 1fr; } }
+
+/* ============================================================================
+   v15 — business archetypes: Atlas knows what kind of business it's running
+   ========================================================================== */
+.type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+.type-card { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 11px; cursor: pointer;
+  background: #fff; border: 1px solid var(--line); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-dim);
+  text-align: left; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+.type-card .icon { color: var(--ink-faint); flex: none; }
+.type-card:hover { border-color: var(--cyan-deep); color: var(--ink); }
+.type-card.on { border-color: var(--cyan-deep); background: linear-gradient(180deg, rgba(15,181,164,0.08), rgba(15,181,164,0.03)); color: var(--cyan-deep); }
+.type-card.on .icon { color: var(--cyan-deep); }
+.type-note { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 2px; padding: 10px 12px; border-radius: 10px;
+  background: linear-gradient(180deg, rgba(15,181,164,0.07), rgba(15,181,164,0.02)); border: 1px solid rgba(15,181,164,0.25);
+  font-size: 12.5px; line-height: 1.5; color: var(--ink-dim); }
+.type-note .icon { color: var(--cyan-deep); flex: none; margin-top: 2px; }
+.type-note b { color: var(--ink); }
+.dim-note-inline { font-weight: 400; color: var(--ink-faint); text-transform: none; letter-spacing: 0; }

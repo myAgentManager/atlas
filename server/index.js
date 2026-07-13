@@ -17,6 +17,7 @@ import * as biz from './business.js';
 import * as agents from './agents.js';
 import * as connectors from './connectors.js';
 import { CONNECTORS, CAPABILITIES } from './catalog.js';
+import { archetypeList } from './atlas/archetypes.js';
 import * as kb from './atlas/kb.js';
 import { fetchRecent } from './imap.js';
 import { sendVia } from './email.js';
@@ -388,6 +389,8 @@ app.post('/api/billing/webhook', express.raw({ type: '*/*' }), (req, res) => {
 // Catalog — the connectors + capabilities the UI renders
 // ============================================================================
 app.get('/api/catalog', auth.requireAuth, (_req, res) => res.json({ connectors: CONNECTORS, capabilities: CAPABILITIES }));
+// Business archetypes — the kinds of business Atlas knows how to run
+app.get('/api/archetypes', auth.requireAuth, (_req, res) => res.json(archetypeList()));
 
 // ============================================================================
 // Integration tools (connectors) — a business plugs in its own services

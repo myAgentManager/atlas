@@ -9,6 +9,7 @@ import { bus } from './bus.js';
 import { tokenize } from './atlas/nlu.js';
 import { newVoice, contract, pick } from './atlas/voice.js';
 import * as kb from './atlas/kb.js';
+import { archetype, detectArchetype } from './atlas/archetypes.js';
 
 let db = getDoc('business', { biz: {} }); // biz[userId] = { profile, faqs, customers, bookings, inbox }
 const save = () => saveDoc('business', db);
@@ -18,6 +19,7 @@ function biz(userId) {
     profile: {
       name: '', tagline: '', about: '', hours: '', services: '', tone: 'friendly', languages: 'English',
       phone: '', email: '', website: '', address: '', routeTo: '', escalateOn: '', trained: false,
+      type: '', typeDetected: '', // what KIND of business this is (owner pick / Atlas's own read)
     },
     faqs: [],
     customers: [],
@@ -33,9 +35,16 @@ function biz(userId) {
 export const getBusiness = (userId) => biz(userId);
 export function setProfile(userId, patch) {
   const b = biz(userId);
+  const before = b.profile.type || b.profile.typeDetected || '';
   b.profile = { ...b.profile, ...patch, trained: true };
+  const p = b.profile;
+  // Atlas works out what KIND of business this is from its own words; the
+  // owner's explicit pick (p.type) always wins over the guess.
+  p.typeDetected = detectArchetype(`${p.name} ${p.tagline}`, `${p.about} ${p.services}`) || p.typeDetected || '';
+  const effective = p.type || p.typeDetected || '';
+  if (effective && effective !== before) kb.seedArchetype(userId, archetype(effective));
   save();
-  return b.profile;
+  return p;
 }
 
 // --- FAQ --------------------------------------------------------------------
@@ -142,6 +151,18 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   const parts = [];
   const intents = new Set();
 
+  // What kind of business is this, and what is the customer actually asking?
+  // Atlas reads intent through the archetype: "can I come in Friday?" is a
+  // visit at a walk-in café, an appointment at a salon, a table at a restaurant.
+  const arch = archetype(p.type || p.typeDetected);
+  const day = (low.match(/\b(today|tonight|tomorrow|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/) || [])[1] || '';
+  const Day = /^(mon|tue|wed|thu|fri|sat|sun)/.test(day) ? day[0].toUpperCase() + day.slice(1) : day;
+  const explicitBook = /\b(book|appointment|schedule|reserve|reservation|availability|slot)\b/i.test(text);
+  const wantsVisit = /\b(come (in|by|over)|stop by|swing by|drop (by|in)|walk in|visit)\b/i.test(text) || (/\bopen\b/.test(low) && Boolean(day));
+  const wantsOrder = /\b(order|buy|purchase|price|pricing|cost|how much|quote)\b/i.test(text);
+  const noun = arch.bookNoun;
+  const nounPhrase = (/^[aeiou]/.test(noun) ? 'an ' : 'a ') + noun;
+
   // -- direct knowledge: answer the specific things they asked ---------------
   if (/\b(hour|open|close|closing|opening|what time)\b/.test(low) && p.hours) {
     parts.push(pick(r, [`we're open ${p.hours}`, `hours are ${p.hours}`, `you can catch us ${p.hours}`]));
@@ -176,19 +197,39 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     intents.add('faq');
   }
   for (const f of kb.search(userId, text, 2)) {
+    // the intent branches below answer visit/booking themselves — don't let a
+    // knowledge fact say the same thing a second time in different words
+    if ((explicitBook || wantsVisit) && /\b(book|booking|reservation|appointment|walk in|visit|class)\b/i.test(f.topic)) continue;
     if (!restates(f.fact)) { parts.push(f.fact); intents.add('faq'); }
   }
 
-  // -- action intents ----------------------------------------------------------
-  const wantsBooking = /\b(book|appointment|schedule|reserve|reservation|availability|slot|come in)\b/i.test(text);
-  const wantsOrder = /\b(order|buy|purchase|price|pricing|cost|how much|quote)\b/i.test(text);
-  if (wantsBooking && can.booking === false) {
+  // -- action intents: answer them the way THIS business would -----------------
+  if ((explicitBook || wantsVisit) && !arch.bookable) {
+    // walk-in business: nothing to book — just come on by
+    const line = pick(r, [
+      `no booking needed — we're walk-in, just ${Day ? `swing by ${Day}` : 'swing by'}${p.hours ? ` (we're open ${p.hours})` : ''}`,
+      `${Day ? `${Day} works — ` : ''}just come on by, no appointment needed${p.hours ? `. We're open ${p.hours}` : ''}`,
+    ]);
+    if (!restates(line)) parts.push(line);
+    intents.add('faq');
+  } else if ((explicitBook || wantsVisit) && can.booking === false) {
     parts.push(`I've noted your request and someone from the team will follow up to get you scheduled.`);
-  } else if (wantsBooking) {
+  } else if (explicitBook) {
+    const ask = noun === 'table' ? 'what date, time, and party size?'
+      : noun === 'room' ? 'what dates, and how many guests?'
+      : noun === 'class' ? 'which class, and what day?'
+      : 'what day and time work for you?';
     parts.push(pick(r, [
-      `happy to get you booked — what day and time work for you?`,
-      `I can set that up. When were you thinking?`,
-      `let's get you on the calendar — give me a day and time and I'll confirm.`,
+      `happy to get your ${noun} set${Day ? ` for ${Day}` : ''} — ${ask}`,
+      `I can ${noun === 'table' ? 'hold a table' : `book ${nounPhrase}`} for you${Day ? ` ${Day}` : ''}. ${ask.charAt(0).toUpperCase() + ask.slice(1)}`,
+      `let's get you ${noun === 'table' || noun === 'room' ? nounPhrase : 'booked in'}${Day ? ` for ${Day}` : ''} — ${ask}`,
+    ]));
+    intents.add('booking');
+  } else if (wantsVisit) {
+    // visit phrasing at a bookable business → offer to set it up, don't presume
+    parts.push(pick(r, [
+      `we're ${arch.visit}-based — want me to set up ${nounPhrase}${Day ? ` for ${Day}` : ''}?`,
+      `I can get ${nounPhrase} on the books${Day ? ` for ${Day}` : ''} if you'd like — just say the word.`,
     ]));
     intents.add('booking');
   } else if (wantsOrder && can.sales !== false) {

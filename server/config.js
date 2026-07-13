@@ -82,22 +82,22 @@ export const config = Object.freeze({
       tiers: [],
     },
     starter: {
-      id: 'starter', name: 'Starter', price: 49, agents: 2,
-      blurb: 'Two agents on the front desk — email, chat, bookings.',
+      id: 'starter', name: 'Starter', price: 49, agents: 3,
+      blurb: 'Three agents on the front desk — email, chat, bookings, VoIP.',
       base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
-      tiers: [],
+      tiers: ['starter'],
     },
     pro: {
       id: 'pro', name: 'Pro', price: 99, agents: 5,
       blurb: 'Five agents plus SMS, many languages, after-hours.',
       base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
-      tiers: ['pro'],
+      tiers: ['starter', 'pro'],
     },
     growth: {
       id: 'growth', name: 'Growth', price: 199, agents: 25,
       blurb: 'A whole team of agents — phone calls, API, analytics.',
       base: ['webchat', 'faq', 'bookings', 'orders', 'crm', 'sales', 'reminders', 'email'],
-      tiers: ['pro', 'growth'],
+      tiers: ['starter', 'pro', 'growth'],
     },
   },
 

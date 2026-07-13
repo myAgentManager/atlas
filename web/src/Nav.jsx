@@ -8,8 +8,8 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
   const [theme, setTheme] = useState(getTheme());
   // Workspace tabs first, account tabs after the divider.
   const tabs = [
-    ['dashboard', 'Dashboard', 'bolt'],
-    ['deck', 'Agents', 'brain'],
+    ['dashboard', 'Dashboard', 'grid'],
+    ['deck', 'Agents', 'user'],
     ['business', 'Business', 'home'],
     ['knowledge', 'Knowledge', 'brain'],
     ['customers', 'Customers', 'user'],

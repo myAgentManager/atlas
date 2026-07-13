@@ -223,7 +223,7 @@ function Notifications({ user, setUser, agent }) {
         <label className="auth-label">Text me at<input className="field" placeholder="+1 555 555 0100" value={smsTo} onChange={(e) => setSmsTo(e.target.value)} /></label>
         <label className="notify-row set-check">
           <input type="checkbox" checked={notifySms} onChange={(e) => setNotifySms(e.target.checked)} />
-          <Icon name={notifySms ? 'bell' : 'bellOff'} size={15} /> Text me when tasks finish or fail
+          <Icon name={notifySms ? 'bell' : 'bellOff'} size={15} /> Text me when an agent needs a human
         </label>
       </div>
       <div className="set-actions"><span className="flash">{flash}</span><button className="gel-btn" onClick={save}>Save notifications</button></div>
@@ -246,7 +246,7 @@ function Integrations({ user, setUser }) {
       .catch((e) => show(e.message));
   return (
     <Section icon="plug" title="Platform integrations">
-      <p className="dim-note">ATLAS posts task events to any platform that accepts a webhook. Paste incoming-webhook URLs from Slack or Discord, or point the generic hook at your own service.</p>
+      <p className="dim-note">ATLAS posts business events — escalations, new bookings, hot leads — to any platform that accepts a webhook. Paste incoming-webhook URLs from Slack or Discord, or point the generic hook at your own service.</p>
       <label className="auth-label">Generic webhook (JSON POST)<input className="field mono tiny" placeholder="https://your-service/hook" value={webhookUrl} onChange={(e) => setWebhook(e.target.value)} /></label>
       <div className="set-row">
         <label className="auth-label">Slack webhook<input className="field mono tiny" placeholder="https://hooks.slack.com/services/…" value={slackUrl} onChange={(e) => setSlack(e.target.value)} /></label>
@@ -292,7 +292,7 @@ function DevApi({ user, setUser }) {
 function Danger({ onDeleted }) {
   const [flash, show] = useFlash();
   const del = () => {
-    const pw = prompt('This deletes your account, tasks, and workspace. Enter your password to confirm:');
+    const pw = prompt('This deletes your account, agents, customers, and knowledge. Enter your password to confirm:');
     if (!pw) return;
     api.deleteAccount(pw).then(onDeleted).catch((e) => show(e.message));
   };

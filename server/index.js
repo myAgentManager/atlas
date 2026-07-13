@@ -19,6 +19,7 @@ import * as connectors from './connectors.js';
 import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { archetypeList } from './atlas/archetypes.js';
 import * as kb from './atlas/kb.js';
+import * as voip from './voip.js';
 import { fetchRecent } from './imap.js';
 import { sendVia } from './email.js';
 import { checkContent, declineMessage } from './atlas/guard.js';
@@ -134,8 +135,14 @@ app.post('/api/auth/login', async (req, res) => {
   if (user.disabled) return bad(res, 403, 'This account is disabled. Contact the server owner.');
   auth.rateClear(key);
 
-  // Second step — by whichever method the account enrolled in.
+  // Second step — by whichever method the account enrolled in. A device that
+  // already passed 2SV recently (trusted-device cookie) skips the challenge.
   const method = auth.secondMethod(user);
+  if (method && auth.trustValid(auth.parseCookies(req).ma_trust, user.id)) {
+    auth.setCookie(res, 'ma_sess', auth.createSession(user.id), { secure: req.secure });
+    auth.audit('auth', `signed in (trusted device): ${user.email}`);
+    return res.json({ user: auth.publicUser(user) });
+  }
   if (method === 'totp') {
     return res.json({ need2sv: true, method, pending: auth.createPending(user.id, { method }) });
   }
@@ -182,6 +189,8 @@ app.post('/api/auth/verify', (req, res) => {
   }
   auth.rateClear(key);
   auth.setCookie(res, 'ma_sess', auth.createSession(p.user.id), { secure: req.secure });
+  // this browser proved the second factor — trust it for the next 30 days
+  auth.setCookie(res, 'ma_trust', auth.trustToken(p.user.id), { maxAge: auth.TRUST_MS, secure: req.secure });
   auth.audit('auth', `signed in (2SV ${p.method}): ${p.user.email}`);
   res.json({ user: auth.publicUser(p.user) });
 });
@@ -231,6 +240,8 @@ app.post('/api/me/2sv/setup', auth.requireAuth, (req, res) => {
 app.post('/api/me/2sv/enable', auth.requireAuth, (req, res) => {
   const backup = auth.enableTotp(req.user, req.body?.code);
   if (!backup) return bad(res, 400, 'Code didn\'t match — scan the secret again and retry.');
+  // enrolling proved the factor on this browser — trust it like a 2SV pass
+  auth.setCookie(res, 'ma_trust', auth.trustToken(req.user.id), { maxAge: auth.TRUST_MS, secure: req.secure });
   res.json({ ok: true, backup });
 });
 // Enroll in email/SMS codes: we send one to prove the channel works, then
@@ -848,6 +859,29 @@ app.get('/api/stream', auth.requireAuth, (req, res) => {
   bus.on('event', onEvent); bus.on('task', onTask); bus.on('chat', onChat);
   const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
   req.on('close', () => { clearInterval(ping); bus.off('event', onEvent); bus.off('task', onTask); bus.off('chat', onChat); });
+});
+
+// ============================================================================
+// VoIP IVR webhook — the business's PBX posts each caller utterance here with
+// the account's IVR token (set on the pbx connector). Answers as JSON
+// { say, hangup } or Twilio-style XML when the client asks for xml. Accepts
+// Twilio field names (CallSid/From/SpeechResult/Digits) so Programmable Voice
+// works unmodified.
+// ============================================================================
+app.post('/api/voip/ivr', express.urlencoded({ extended: false }), (req, res) => {
+  const b = { ...req.query, ...req.body };
+  const key = `voip:${req.ip}`;
+  if (!auth.rateCheck(key, 240, 60_000)) return res.status(429).json({ error: 'slow down' });
+  const user = voip.findAccountByToken(b.token || req.headers['x-ivr-token']);
+  if (!user) { auth.rateFail(key, 240, 60_000); return res.status(401).json({ error: 'bad or missing IVR token' }); }
+  const out = voip.handleTurn({
+    user,
+    callId: b.callId || b.CallSid || '',
+    caller: b.caller || b.From || '',
+    text: b.text || b.SpeechResult || b.Digits || '',
+  });
+  if (b.format === 'xml' || /xml/i.test(req.headers.accept || '')) return res.type('text/xml').send(voip.toXml(out));
+  res.json(out);
 });
 
 // ============================================================================

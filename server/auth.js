@@ -4,6 +4,7 @@
 // authenticator app) plus single-use backup codes.
 import crypto from 'node:crypto';
 import { getDoc, saveDoc } from './db.js';
+import { config } from './config.js';
 
 let usersDb = getDoc('users', { users: [] });
 let sessions = getDoc('sessions', {}); // token -> { userId, exp }
@@ -112,9 +113,10 @@ export function createUser({ email, name, password, provider, providerId }) {
     role: usersDb.users.length === 0 ? 'owner' : 'member',
     disabled: false,
     welcomed: false,
-    // Company addresses and OAuth identities are trusted; everyone else must
-    // confirm a code emailed to them.
-    emailVerified: Boolean(provider) || email.endsWith('@atlasnetworks.com') || usersDb.users.length === 0,
+    // Every signup confirms a code emailed to them — company addresses too.
+    // Only OAuth identities (provider already verified the email) and the very
+    // first account (no email channel exists yet to send through) are exempt.
+    emailVerified: Boolean(provider) || usersDb.users.length === 0,
     // Atlas Networks staff (company email or first account) are founders; they
     // reach the Operations + Strategy consoles. Everyone else is a business owner.
     founder: email.endsWith('@atlasnetworks.com') || usersDb.users.length === 0,
@@ -280,6 +282,24 @@ export function setCookie(res, name, value, { maxAge = SESSION_MS, path = '/', s
 }
 export function clearCookie(res, name) {
   res.append('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+// --- trusted devices -----------------------------------------------------------
+// After one successful 2SV, the browser gets a signed token so day-to-day
+// sign-ins skip the second step for 30 days. Stateless — HMAC over
+// userId + expiry with the server secret; revoke everywhere by rotating
+// MYAGENT_SECRET.
+export const TRUST_MS = 30 * 24 * 3600e3;
+export function trustToken(userId) {
+  const exp = Date.now() + TRUST_MS;
+  const sig = crypto.createHmac('sha256', config.secret).update(`${userId}.${exp}`).digest('base64url');
+  return `${userId}.${exp}.${sig}`;
+}
+export function trustValid(token, userId) {
+  const [uid, exp, sig] = String(token || '').split('.');
+  if (!uid || uid !== userId || !exp || Number(exp) < Date.now() || !sig) return false;
+  const want = crypto.createHmac('sha256', config.secret).update(`${uid}.${exp}`).digest('base64url');
+  return sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want));
 }
 
 export function attach(req, _res, next) {

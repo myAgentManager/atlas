@@ -5,7 +5,7 @@ const KEY = 'atlas-theme';
 export function getTheme() {
   const saved = localStorage.getItem(KEY);
   if (saved === 'light' || saved === 'dark') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'dark'; // dark is the house default; the toggle remembers your pick
 }
 
 export function applyTheme(t) {

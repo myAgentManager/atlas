@@ -86,6 +86,18 @@ export const CONNECTORS = {
     fields: [{ key: 'key', label: 'Stripe secret key', secret: true, placeholder: 'sk_live_…' }],
     required: ['key'],
   },
+  pbx: {
+    id: 'pbx', name: 'PBX / VoIP extension', icon: 'plug',
+    blurb: "Give myAgent an extension on your phone system. Point your PBX's IVR at the webhook and the agent speaks to callers.",
+    fields: [
+      { key: 'host', label: 'SIP registrar / PBX host', placeholder: 'pbx.yourbusiness.com' },
+      { key: 'ext', label: 'Extension', placeholder: '200' },
+      { key: 'user', label: 'Auth user', placeholder: 'myagent' },
+      { key: 'secret', label: 'SIP secret', secret: true },
+      { key: 'token', label: 'IVR webhook token (set the same on your PBX)', secret: true, placeholder: 'a long random string' },
+    ],
+    required: ['host', 'ext', 'token'],
+  },
 };
 
 // What an agent can be told to do. `needs` lists connectors required for it to
@@ -104,6 +116,7 @@ export const CAPABILITIES = {
   multilingual: { id: 'multilingual', name: 'Every language', icon: 'globe', needs: [], tier: 'pro' },
   afterhours: { id: 'afterhours', name: 'After-hours coverage', icon: 'clock', needs: [], tier: 'pro' },
   alerts: { id: 'alerts', name: 'Alert staff to issues', icon: 'bell', needs: ['smtp'], tier: 'pro' },
+  voip: { id: 'voip', name: 'VoIP calls (PBX extension)', icon: 'plug', needs: ['pbx'], tier: 'starter' },
 };
 
 // Given the connector configs an account has saved, which are "connected".

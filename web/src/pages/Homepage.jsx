@@ -5,8 +5,6 @@ import { getTheme, toggleTheme } from '../theme.js';
 
 export default function Homepage({ agent, connected, tasks, user, onLaunch, onSignIn }) {
   const name = agent?.name || 'ATLAS';
-  const engine = agent?.engine || {};
-  const runs = tasks.reduce((n, t) => n + (t.runCount || 0), 0);
   const [theme, setTheme] = useState(getTheme());
 
   return (
@@ -25,7 +23,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
           </button>
           {user ? (
-            <button className="gel-btn gel-primary" onClick={onLaunch}>Open Deck <Icon name="arrow" size={16} /></button>
+            <button className="gel-btn gel-primary" onClick={onLaunch}>Open Dashboard <Icon name="arrow" size={16} /></button>
           ) : (
             <button className="gel-btn gel-primary" onClick={onSignIn}>Sign in <Icon name="arrow" size={16} /></button>
           )}
@@ -45,7 +43,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
             the clock. You set it up once; it runs the busywork while you run the business.
           </p>
           <div className="hero-cta">
-            <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Open your Command Deck' : 'Start free'}</button>
+            <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Open your dashboard' : 'Start free'}</button>
             <a className="text-link" href="#how">See how it works <Icon name="arrow" size={15} /></a>
           </div>
         </div>
@@ -54,9 +52,9 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <Globe size={210} busy={tasks.some((t) => t.status === 'running')} />
           <div className="orb-plate">{name}</div>
           <div className="hero-stats">
-            <Stat value={engine.skills ?? 5} label="Skills" />
-            <Stat value={engine.intents ?? 8} label="Intents" />
-            <Stat value={user ? runs : engine.vocab ?? 0} label={user ? 'Runs' : 'Vocabulary'} live={tasks.some((t) => t.status === 'running')} />
+            <Stat value="24/7" label="On duty" />
+            <Stat value={10} label="Integrations" />
+            <Stat value={0} label="External AI calls" />
           </div>
         </div>
       </header>
@@ -64,38 +62,56 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       {/* how it works */}
       <section className="band" id="how">
         <div className="band-head">
-          <h2 className="band-title">Three steps. Then walk away.</h2>
-          <p className="band-sub">No prompting tricks. Tell it what you want like you'd tell a person.</p>
+          <h2 className="band-title">Three steps. Then it runs your front desk.</h2>
+          <p className="band-sub">No prompting tricks. Tell it about your business like you'd brief a new hire.</p>
         </div>
         <div className="steps">
-          <Step n="1" title="Assign a task" icon="spark">
-            Describe the outcome you want. “Build a landing page,” “research suppliers,” “summarize this folder.”
+          <Step n="1" title="Teach it your business" icon="home">
+            Your name, hours, and FAQ — or just point it at your website and it studies
+            everything itself. It even works out what kind of business you run.
           </Step>
-          <Step n="2" title="Set when" icon="calendar">
-            Run it now, every 30 minutes, daily, or overnight with a deadline like “done by 8 AM.”
+          <Step n="2" title="Build your agents" icon="user">
+            Name an agent and pick its skills: email, live chat, bookings, orders,
+            phone calls. Connect the tools you already use.
           </Step>
-          <Step n="3" title="It works & reports" icon="check">
-            Watch {name} think and act in a live feed. Chat to steer it. Get a text when it's done.
+          <Step n="3" title="They handle customers" icon="check">
+            Agents answer, book, and follow up around the clock — and hand off to a
+            real person the moment something needs one.
           </Step>
         </div>
       </section>
 
       {/* capabilities */}
       <section className="band">
-        <div className="band-head"><h2 className="band-title">Built to actually do things</h2></div>
+        <div className="band-head"><h2 className="band-title">Built to actually run a front desk</h2></div>
         <div className="cap-grid">
           <Cap icon="brain" title="An AI that's truly yours"
-            body={`${name} runs on ATLAS Core — an original engine built by Atlas Networks. No Anthropic, no Ollama, no wrapper. The thinking is all ours.`} />
-          <Cap icon="globe" title="Real web browsing"
-            body="Searches the live web and reads pages, then writes cited research reports." />
-          <Cap icon="calendar" title="Detailed scheduling"
-            body="One-off, recurring, overnight, or deadline-driven runs. Build me a site by morning — done." />
-          <Cap icon="chat" title="Two-way chat"
-            body={`Message ${name} while it works, or hold an open conversation on its own page.`} />
-          <Cap icon="plug" title="Platform integrations"
-            body="Webhooks to Slack, Discord, or your own services — plus a developer API with keys, and SMS alerts." />
-          <Cap icon="lock" title="Accounts & 2SV"
-            body="Every person gets their own account, workspace, and settings — protected by two-step verification." />
+            body={`${name} runs on ATLAS Core — an original engine built by Atlas Networks. No Anthropic, no OpenAI, no wrapper. The thinking is all ours.`} />
+          <Cap icon="chat" title="Every channel"
+            body="Email, live website chat, SMS, WhatsApp — and phone calls through your own PBX extension. One agent, every door." />
+          <Cap icon="calendar" title="Bookings & orders"
+            body="Takes reservations, books appointments, captures orders and quotes — and knows a walk-in café from a salon." />
+          <Cap icon="globe" title="Knowledge that grows"
+            body="It studies your website, absorbs your FAQ, and files every question it couldn't answer for you to teach it." />
+          <Cap icon="user" title="A CRM that fills itself"
+            body="Every customer conversation is logged, every lead captured, every trend surfaced on your dashboard." />
+          <Cap icon="lock" title="Verified & secure"
+            body="Every account verifies its email and sets up two-step verification. Your business data stays in your account only." />
+        </div>
+      </section>
+
+      {/* integrations */}
+      <section className="band" id="integrations">
+        <div className="band-head">
+          <h2 className="band-title">Plugs into what you already use</h2>
+          <p className="band-sub">Connect a tool once — every agent you build can draw on it.</p>
+        </div>
+        <div className="integ-strip">
+          {[['file', 'Email (IMAP)'], ['send', 'Email (SMTP)'], ['chat', 'Twilio SMS & Voice'], ['plug', 'PBX / VoIP extension'],
+            ['calendar', 'Calendar'], ['chat', 'WhatsApp'], ['chat', 'Slack'], ['globe', 'Website knowledge'],
+            ['file', 'Google Sheets'], ['spark', 'Stripe payments']].map(([icon, label], i) => (
+            <span key={i} className="integ-chip"><Icon name={icon} size={15} /> {label}</span>
+          ))}
         </div>
       </section>
 
@@ -106,39 +122,39 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <h2 className="band-title">One agent. A whole network behind it.</h2>
           <p className="band-sub">
             {name} isn't a wrapper around someone else's model — it's an original engine,
-            and every part of it runs inside your account's private slice of the network.
+            and every part of it works for your business inside your private account.
           </p>
         </div>
         <div className="atlas-grid-home">
           <div className="anode panel">
             <div className="anode-top"><Icon name="brain" size={18} /><span>Understanding</span></div>
-            <p>A from-scratch language layer reads your brief — intent, topic, tone, deadline — and asks before it assumes.</p>
+            <p>A from-scratch language layer reads what each customer actually wants — a booking, an order, a question, a complaint.</p>
           </div>
           <div className="anode panel">
-            <div className="anode-top"><Icon name="code" size={18} /><span>Planning</span></div>
-            <p>Every task starts with a numbered plan posted to your feed, so you always know what {name} is about to do.</p>
+            <div className="anode-top"><Icon name="home" size={18} /><span>Knows your business</span></div>
+            <p>“Can I come in Friday?” means a table at a restaurant, an appointment at a salon, and just come on by at a café. {name} knows the difference.</p>
           </div>
           <div className="anode panel">
-            <div className="anode-top"><Icon name="globe" size={18} /><span>Live web reach</span></div>
-            <p>Searches and reads the open web for current information — research reports come back with citations.</p>
+            <div className="anode-top"><Icon name="globe" size={18} /><span>A knowledge base that grows</span></div>
+            <p>It studies your website and FAQ, files every fact, and logs what it couldn't answer so you can teach it in one click.</p>
           </div>
           <div className="anode panel">
-            <div className="anode-top"><Icon name="refresh" size={18} /><span>Refinement</span></div>
-            <p>Give it a deadline and it doesn't rush — it drafts, then returns pass after pass, improving until the hour you set.</p>
+            <div className="anode-top"><Icon name="chat" size={18} /><span>In its own words</span></div>
+            <p>Answers first, in natural language that never reads canned — and it greets customers once, not every message.</p>
           </div>
           <div className="anode panel">
-            <div className="anode-top"><Icon name="eye" size={18} /><span>Self-review</span></div>
-            <p>Before sign-off, {name} re-opens its own work and runs a quality checklist. You see every check in the feed.</p>
+            <div className="anode-top"><Icon name="user" size={18} /><span>Knows when to hand off</span></div>
+            <p>Refunds, complaints, your escalation keywords — the moment it matters, a real person on your team gets it.</p>
           </div>
           <div className="anode panel">
             <div className="anode-top"><Icon name="lock" size={18} /><span>Private by design</span></div>
-            <p>Your tasks, chats, and files live in your account only. Nothing is shared unless you mint a link — revocable anytime.</p>
+            <p>Your customers, conversations, and knowledge live in your account only. Nothing trains anyone else's AI.</p>
           </div>
         </div>
         <div className="atlas-ticker">
-          <span className="ticker-item"><b>{engine.skills ?? 6}</b> skills</span>
-          <span className="ticker-item"><b>{engine.intents ?? 9}</b> intents</span>
-          <span className="ticker-item"><b>{engine.vocab ?? '—'}</b> word vocabulary</span>
+          <span className="ticker-item"><b>10</b> integrations</span>
+          <span className="ticker-item"><b>14</b> agent capabilities</span>
+          <span className="ticker-item"><b>every</b> language</span>
           <span className="ticker-item"><b>0</b> external AI calls</span>
         </div>
       </section>
@@ -149,24 +165,25 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <div className="eyebrow"><Icon name="bolt" size={14} /> The agent</div>
           <h2 className="band-title">Meet {name}</h2>
           <p className="meet-body">
-            {name} doesn't just answer — it works. It parses your brief, plans the steps, uses
-            its tools, and hands you a real artifact: a site, a report, a draft. Every step is
-            narrated live, and everything it learns lands in its memory for next time.
+            {name} doesn't just chat — it works your counter. It reads each customer message,
+            answers from what it knows about your business, books the appointment or takes the
+            order, and logs the whole conversation to your dashboard. Every question it can't
+            answer becomes something you can teach it in one click.
           </p>
           <button className="gel-btn gel-primary" onClick={onLaunch}>Put {name} to work <Icon name="arrow" size={16} /></button>
         </div>
         <div className="meet-right panel feed-mock">
-          <div className="mock-line system"><Icon name="bolt" size={14} /> {name} picked up the task.</div>
-          <div className="mock-line thought"><Icon name="spark" size={14} /> Understood — intent: build a website (topic: “The Night Shift”).</div>
-          <div className="mock-line tool"><Icon name="globe" size={14} /> Composing copy: headline, 3 sections, dates, signup</div>
-          <div className="mock-line tool"><Icon name="bolt" size={14} /> Writing sites/the-night-shift/index.html</div>
-          <div className="mock-line result"><Icon name="check" size={14} /> Built a responsive one-page site — midnight palette.</div>
+          <div className="mock-line system"><Icon name="chat" size={14} /> Web chat — new customer.</div>
+          <div className="mock-line thought"><Icon name="spark" size={14} /> “Can I come in Friday?” — walk-in café, nothing to book.</div>
+          <div className="mock-line tool"><Icon name="chat" size={14} /> “Friday works — just come on by! We're open 7am–6pm.”</div>
+          <div className="mock-line tool"><Icon name="user" size={14} /> Logged the customer + conversation to your CRM</div>
+          <div className="mock-line result"><Icon name="check" size={14} /> Handled — no human needed.</div>
         </div>
       </section>
 
       <section className="cta-band">
         <h2 className="band-title">Ready when you are.</h2>
-        <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Enter the Command Deck' : 'Create your account'}</button>
+        <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Open your dashboard' : 'Create your account'}</button>
       </section>
 
       <footer className="home-foot">

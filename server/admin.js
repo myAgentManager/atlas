@@ -297,7 +297,7 @@ function fmt(ts){return new Date(ts).toLocaleString([],{month:'short',day:'numer
 async function refresh(){
   const o=await api('/api/overview');
   $('#host').textContent=o.host+' · node '+o.node;
-  $('#stats').innerHTML=[['Accounts',o.users],['Tasks',o.tasks.total],['Running',o.tasks.running],['Total runs',o.tasks.runs],['Uptime',Math.floor(o.uptimeSec/3600)+'h '+Math.floor(o.uptimeSec%3600/60)+'m'],['Memory',o.rssMb+' MB'],['Load',o.load],['Engine',o.engine.engine+' v'+o.engine.version]].map(([l,v])=>'<div class="stat"><b>'+v+'</b><span>'+l+'</span></div>').join('');
+  $('#stats').innerHTML=[['Accounts',o.users],['Tasks',o.tasks.total],['Running',o.tasks.running],['Total runs',o.tasks.runs],['Uptime',Math.floor(o.uptimeSec/3600)+'h '+Math.floor(o.uptimeSec%3600/60)+'m'],['Memory',o.rssMb+' MB'],['Load',o.load],['Engine',o.engine.engine+' v'+o.engine.version],['Skills',o.engine.skills??'—'],['Intents',o.engine.intents??'—'],['Vocabulary',o.engine.vocab??'—']].map(([l,v])=>'<div class="stat"><b>'+v+'</b><span>'+l+'</span></div>').join('');
   const users=await api('/api/users');
   $('#users').innerHTML='<tr><th>Account</th><th>Role</th><th>2SV</th><th>Tasks</th><th>Status</th><th></th></tr>'+users.map(u=>'<tr><td><b>'+esc(u.name)+'</b><br><span class="mono" style="color:var(--faint);font-size:11px">'+esc(u.email)+'</span></td><td><span class="tag">'+u.role+'</span></td><td><span class="tag '+(u.twoStep?'on':'')+'">'+(u.twoStep?'on':'off')+'</span></td><td>'+u.tasks+'</td><td><span class="tag '+(u.disabled?'off':'on')+'">'+(u.disabled?'disabled':'active')+'</span></td><td style="text-align:right;white-space:nowrap">'+
     '<button class="btn" onclick="act(\\'/api/users/'+u.id+'/role\\')">role</button> '+

@@ -9,6 +9,7 @@ const CAP_LABELS = {
   reminders: 'Reminders & follow-ups', email: 'Respond to emails', sms: 'Text (SMS)',
   multilingual: 'Every language', afterhours: 'After-hours coverage', alerts: 'Alert staff to issues',
   phone: 'Answer phone calls', api: 'Developer API', analytics: 'Analytics & graphs',
+  voip: 'VoIP calls (PBX extension)',
 };
 
 export default function Billing({ user, setUser }) {
@@ -50,11 +51,11 @@ export default function Billing({ user, setUser }) {
               <div className="plan-name">{p.name}</div>
               <div className="plan-price">{p.price === 0 ? 'Free' : <>${p.price}<span>/mo</span></>}</div>
               {p.price > 0 && <div className="plan-intro">${intro2}/mo for {intro.months} months</div>}
-              <div className="plan-agents"><Icon name="brain" size={14} /> {p.agents} agent{p.agents !== 1 ? 's' : ''}</div>
+              <div className="plan-agents"><Icon name="user" size={14} /> {p.agents} agent{p.agents !== 1 ? 's' : ''}</div>
               <div className="plan-blurb">{p.blurb}</div>
+              {/* every feature, spelled out — businesses see exactly what they're buying */}
               <ul className="plan-tools">
-                {(p.capabilities || []).slice(0, 7).map((t) => (<li key={t}><Icon name="check" size={13} /> {CAP_LABELS[t] || t}</li>))}
-                {(p.capabilities || []).length > 7 && <li className="more">+ {p.capabilities.length - 7} more</li>}
+                {(p.capabilities || []).map((t) => (<li key={t}><Icon name="check" size={13} /> {CAP_LABELS[t] || t}</li>))}
               </ul>
               {current === p.id
                 ? <button className="gel-btn plan-btn" disabled>Current plan</button>

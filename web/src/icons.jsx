@@ -33,6 +33,8 @@ const PATHS = {
   file: <><path d="M6 3h8l4 4v14H6V3Z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></>,
   refresh: <path d="M20 12a8 8 0 1 1-2.3-5.6M20 3v4h-4" />,
   code: <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 5l-2 14" />,
+  sun: <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9" /></>,
+  moon: <path d="M20.4 14.2A8.5 8.5 0 0 1 9.8 3.6a8.5 8.5 0 1 0 10.6 10.6Z" />,
 };
 
 export function Icon({ name, size = 20, className = '' }) {
@@ -47,10 +49,11 @@ export function Icon({ name, size = 20, className = '' }) {
 // The Atlas Networks mark: a skeuomorphic 3D glossy globe — deep navy sphere,
 // beveled white continents, a curved glass reflection across the top, and a
 // rim of bounced light at the base. Transparent outside the sphere.
-export function Mark({ size = 28 }) {
+export function Mark({ size = 28, spin = false }) {
   const uid = React.useId().replace(/:/g, '');
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden
+      className={spin ? 'mark-spinning' : undefined}>
       <defs>
         {/* ocean: lit upper-left, falling to near-black navy at the edge */}
         <radialGradient id={`sea${uid}`} cx="34%" cy="26%" r="90%">
@@ -83,18 +86,21 @@ export function Mark({ size = 28 }) {
       <circle cx="32" cy="32" r="28" fill={`url(#sea${uid})`} />
 
       <g clipPath={`url(#disc${uid})`}>
-        {/* continents: dark offset copy underneath fakes a beveled emboss */}
-        <g fill="#0a2a55" transform="translate(0.9 1.2)" opacity="0.85">
-          <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
-          <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" />
-          <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
-          <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" />
-        </g>
-        <g fill="#f7fafd">
-          <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
-          <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".97" />
-          <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
-          <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".95" />
+        {/* continents (spinnable as one landmass under the static gloss) */}
+        <g className="mark-land">
+          {/* dark offset copy underneath fakes a beveled emboss */}
+          <g fill="#0a2a55" transform="translate(0.9 1.2)" opacity="0.85">
+            <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
+            <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" />
+            <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
+            <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" />
+          </g>
+          <g fill="#f7fafd">
+            <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
+            <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".97" />
+            <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
+            <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".95" />
+          </g>
         </g>
 
         {/* sphere shading + bottom bounce light */}

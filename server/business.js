@@ -151,6 +151,29 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   const parts = [];
   const intents = new Set();
 
+  // -- conversational reflexes: not every message is a question ----------------
+  // "thanks!" isn't a knowledge gap — it's a person being nice. Answer like one.
+  const bare = low.replace(/[^a-z' ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const quick = (t) => ({ text: contract(t), intent: 'general', needsHuman: false, routeTo: '', thinkMs: Math.max(500, 300 + t.length * 6) });
+  if (/^(thanks|thank you|thank u|thx|ty|perfect|awesome|great|amazing|cool|sounds good|ok|okay|got it)( so much| a lot| you)?$/.test(bare)) {
+    return quick(pick(r, [
+      'Anytime! Give us a shout if anything else comes up.',
+      "You're welcome — happy to help.",
+      'Of course! Anything else, just ask.',
+    ]));
+  }
+  if (/^(hi|hii|hey|heyy|hello|yo|howdy|good morning|good afternoon|good evening|what's up|whats up|sup)( there)?$/.test(bare)) {
+    return quick(greeted
+      ? pick(r, ['Hey again! What else can I do for you?', 'Still here — what can I help with?'])
+      : pick(r, [
+          p.name ? `Hey! Welcome to ${p.name} — what can I do for you?` : 'Hey! What can I do for you?',
+          'Hi there! How can I help today?',
+        ]));
+  }
+  if (/^(bye|goodbye|bye bye|see ya|see you|later|take care|have a good (day|night|one))$/.test(bare)) {
+    return quick(pick(r, ['Take care! Come see us soon.', 'Bye for now — reach out anytime.', 'Have a good one!']));
+  }
+
   // What kind of business is this, and what is the customer actually asking?
   // Atlas reads intent through the archetype: "can I come in Friday?" is a
   // visit at a walk-in café, an appointment at a salon, a table at a restaurant.
@@ -164,9 +187,11 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   const nounPhrase = (/^[aeiou]/.test(noun) ? 'an ' : 'a ') + noun;
 
   // -- direct knowledge: answer the specific things they asked ---------------
-  if (/\b(hour|open|close|closing|opening|what time)\b/.test(low) && p.hours) {
+  let saidHours = false;
+  if (/\b(hours?|open|close[sd]?|closing|opening|what time)\b/.test(low) && p.hours) {
     parts.push(pick(r, [`we're open ${p.hours}`, `hours are ${p.hours}`, `you can catch us ${p.hours}`]));
     intents.add('faq');
+    saidHours = true;
   }
   if (/\b(where|address|located|location|directions|find you)\b/.test(low) && p.address) {
     parts.push(pick(r, [`we're at ${p.address}`, `you'll find us at ${p.address}`, `${p.address} — easy to spot`]));
@@ -206,9 +231,10 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   // -- action intents: answer them the way THIS business would -----------------
   if ((explicitBook || wantsVisit) && !arch.bookable) {
     // walk-in business: nothing to book — just come on by
+    const hoursNote = p.hours && !saidHours;
     const line = pick(r, [
-      `no booking needed — we're walk-in, just ${Day ? `swing by ${Day}` : 'swing by'}${p.hours ? ` (we're open ${p.hours})` : ''}`,
-      `${Day ? `${Day} works — ` : ''}just come on by, no appointment needed${p.hours ? `. We're open ${p.hours}` : ''}`,
+      `no booking needed — we're walk-in, just ${Day ? `swing by ${Day}` : 'swing by'}${hoursNote ? ` (we're open ${p.hours})` : ''}`,
+      `${Day ? `${Day} works — ` : ''}just come on by, no appointment needed${hoursNote ? `. We're open ${p.hours}` : ''}`,
     ]);
     if (!restates(line)) parts.push(line);
     intents.add('faq');
@@ -264,9 +290,13 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   // -- assembly: answer first, greeting only on first contact -----------------
   const opener = greeted ? '' : pick(r, ['Hi! ', 'Hey! ', 'Hey there — ', '']);
   let body = '';
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   parts.forEach((part, i) => {
-    if (i === 0) body = part.charAt(0).toUpperCase() + part.slice(1);
-    else body += (/[.!?]$/.test(body) ? ' ' : '. ') + (part.charAt(0).toUpperCase() + part.slice(1));
+    if (i === 0) { body = cap(part); return; }
+    // vary how the next thought connects — people don't just stack sentences
+    const join = pick(r, ['', '', 'also — ', 'and ', 'oh, and ']);
+    const tail = join && !/^I\b/.test(part) ? part.charAt(0).toLowerCase() + part.slice(1) : part;
+    body += (/[.!?]$/.test(body) ? ' ' : '. ') + cap(join ? join + tail : part);
   });
   if (!/[.!?]$/.test(body)) body += '.';
 

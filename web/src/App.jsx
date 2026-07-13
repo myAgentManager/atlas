@@ -15,6 +15,10 @@ import Knowledge from './pages/Knowledge.jsx';
 import Nav from './Nav.jsx';
 import { Toaster } from './toast.jsx';
 import { Reader } from './reader.jsx';
+import { Mark } from './icons.jsx';
+import { initTheme } from './theme.js';
+
+initTheme(); // set light/dark before first paint
 
 export default function App() {
   const [view, setView] = useState('home'); // home | login | deck | atlas | settings
@@ -76,7 +80,7 @@ export default function App() {
   const signedIn = (u) => { setUser(u); setView(u.welcomed ? 'dashboard' : 'welcome'); };
   const signedOut = () => { setUser(null); setTasks([]); setChat([]); setView('home'); };
 
-  if (!booted) return <div className="boot"><span className="led cyan pulse" /> waking ATLAS…</div>;
+  if (!booted) return <div className="boot"><Mark size={34} spin /> waking ATLAS…</div>;
 
   if (view === 'home') {
     return <Homepage agent={agent} connected={connected} tasks={tasks} user={user}

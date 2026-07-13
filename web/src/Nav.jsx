@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { api } from './api.js';
 import { Icon, Mark } from './icons.jsx';
+import { getTheme, toggleTheme } from './theme.js';
 
 // Shared top bar for signed-in views: brand, tabs, connection LED, account.
 export default function Nav({ view, setView, user, connected, onSignOut }) {
-  // Business-owner nav: overview, agents, the business they learn, customers…
+  const [theme, setTheme] = useState(getTheme());
+  // Workspace tabs first, account tabs after the divider.
   const tabs = [
     ['dashboard', 'Dashboard', 'bolt'],
     ['deck', 'Agents', 'brain'],
     ['business', 'Business', 'home'],
     ['knowledge', 'Knowledge', 'brain'],
     ['customers', 'Customers', 'user'],
+    null, // divider
     ['integrations', 'Integrations', 'plug'],
     ['billing', 'Plans', 'spark'],
     ['settings', 'Settings', 'gear'],
@@ -22,14 +25,20 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
         <span className="wordmark sm"><span className="wordmark-my">my</span><span className="wordmark-agent">Agent</span></span>
       </button>
       <nav className="tabs">
-        {tabs.map(([id, label, icon]) => (
-          <button key={id} className={`tab ${view === id ? 'on' : ''}`} onClick={() => setView(id)}>
-            <Icon name={icon} size={15} /> {label}
-          </button>
-        ))}
+        {tabs.map((t, i) => t === null
+          ? <span key={`sep${i}`} className="tab-sep" />
+          : (
+            <button key={t[0]} className={`tab ${view === t[0] ? 'on' : ''}`} onClick={() => setView(t[0])}>
+              <Icon name={t[2]} size={15} /> {t[1]}
+            </button>
+          ))}
       </nav>
       <div className="nav-right">
         <span className={`led ${connected ? 'green pulse' : 'amber'}`} title={connected ? 'live' : 'reconnecting'} />
+        <button className="mini-btn ghost theme-btn" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={() => setTheme(toggleTheme())}>
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={14} />
+        </button>
         <span className="nav-user"><Icon name="user" size={14} /> {user?.name?.split(' ')[0]}</span>
         <button
           className="mini-btn ghost" title="Sign out"

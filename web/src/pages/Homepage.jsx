@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon, Mark } from '../icons.jsx';
 import Globe from '../Globe.jsx';
+import { getTheme, toggleTheme } from '../theme.js';
 
 export default function Homepage({ agent, connected, tasks, user, onLaunch, onSignIn }) {
   const name = agent?.name || 'ATLAS';
   const engine = agent?.engine || {};
   const runs = tasks.reduce((n, t) => n + (t.runCount || 0), 0);
+  const [theme, setTheme] = useState(getTheme());
 
   return (
     <div className="home">
@@ -18,6 +20,10 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <span className={`net-badge ${connected || agent ? 'on' : 'off'}`}>
             <span className="led" /> {agent ? 'atlas network · online' : 'connecting…'}
           </span>
+          <button className="mini-btn ghost theme-btn" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={() => setTheme(toggleTheme())}>
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
+          </button>
           {user ? (
             <button className="gel-btn gel-primary" onClick={onLaunch}>Open Deck <Icon name="arrow" size={16} /></button>
           ) : (

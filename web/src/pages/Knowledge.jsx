@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Icon } from '../icons.jsx';
+import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 
 // The Atlas Knowledge Database — the mind your agents share. It fills itself
@@ -52,7 +52,7 @@ export default function Knowledge() {
           {arch && <p className="type-note"><Icon name="brain" size={13} /> Atlas understands: <b>{arch.name}</b> — {arch.bookable ? `runs on ${arch.bookNoun}s` : 'walk-in, nothing to book'}</p>}
         </div>
         <button className="gel-btn gel-primary" disabled={studying} onClick={study}>
-          <Icon name="globe" size={15} /> {studying ? 'Studying your site…' : 'Study my website'}
+          {studying ? <Mark size={16} spin /> : <Icon name="globe" size={15} />} {studying ? 'Studying your site…' : 'Study my website'}
         </button>
       </div>
 

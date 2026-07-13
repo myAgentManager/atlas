@@ -4,19 +4,29 @@
    ========================================================================== */
 
 :root {
-  /* Modern light SaaS theme — Atlas Networks. Keeps the cyan brand + glossy
-     globe; everything else is clean white with soft shadows. */
-  --bg-0: #f5f7fb;
-  --bg-1: #eef2f8;
+  /* LIGHT — liquid glass over a soft aurora. Cyan brand + glossy globe kept.
+     Every color flows through these tokens; [data-theme='dark'] swaps them. */
+  --bg-0: #eef1f8;
+  --bg-1: #e7ecf6;
+  --aurora-a: rgba(52, 227, 208, 0.17);
+  --aurora-b: rgba(96, 138, 255, 0.14);
+  --aurora-c: rgba(182, 128, 255, 0.10);
+
+  --glass: rgba(255, 255, 255, 0.60);
+  --glass-strong: rgba(255, 255, 255, 0.78);
+  --glass-soft: rgba(255, 255, 255, 0.40);
+  --glass-edge: rgba(255, 255, 255, 0.95);
+  --blur: 20px;
+
   --metal-hi: #ffffff;
   --metal-lo: #ffffff;
   --metal-edge: rgba(255, 255, 255, 0.9);
-  --line: #e4e9f0;
-  --well: #f3f6fa;
+  --line: rgba(13, 27, 45, 0.10);
+  --well: rgba(13, 27, 45, 0.045);
 
-  --ink: #0f1b2d;
-  --ink-dim: #5a6675;
-  --ink-faint: #9aa5b4;
+  --ink: #0e1a2b;
+  --ink-dim: #4d5a6b;
+  --ink-faint: #8b97a8;
 
   --cyan: #0fb5a4;
   --cyan-deep: #0a8f86;
@@ -28,11 +38,48 @@
   --r-sm: 9px;
   --r: 14px;
   --r-lg: 20px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 28px rgba(16, 24, 40, 0.08);
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 2px 8px rgba(16, 24, 40, 0.05);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px rgba(16, 24, 40, 0.10);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05), 0 3px 10px rgba(16, 24, 40, 0.06);
   --space: 16px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  /* DARK — deep-space navy, glass panels lit from within, aurora glow. */
+  --bg-0: #070b15;
+  --bg-1: #0a1120;
+  --aurora-a: rgba(23, 201, 182, 0.16);
+  --aurora-b: rgba(70, 110, 255, 0.14);
+  --aurora-c: rgba(150, 84, 255, 0.11);
+
+  --glass: rgba(16, 24, 42, 0.56);
+  --glass-strong: rgba(19, 28, 48, 0.80);
+  --glass-soft: rgba(16, 24, 42, 0.38);
+  --glass-edge: rgba(255, 255, 255, 0.10);
+
+  --metal-hi: #141d31;
+  --metal-lo: #0f1729;
+  --metal-edge: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.09);
+  --well: rgba(255, 255, 255, 0.05);
+
+  --ink: #e9eff9;
+  --ink-dim: #9fadc4;
+  --ink-faint: #61708a;
+
+  /* accents brighten on dark — --cyan-deep is the accent TEXT color */
+  --cyan: #17c9b6;
+  --cyan-deep: #3ddfce;
+  --cyan-bright: #4aeedc;
+  --green: #2fd695;
+  --amber: #f4a83c;
+  --red: #ff6478;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 48px rgba(0, 0, 0, 0.52);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1326,3 +1373,189 @@ body {
 .type-note .icon { color: var(--cyan-deep); flex: none; margin-top: 2px; }
 .type-note b { color: var(--ink); }
 .dim-note-inline { font-weight: 400; color: var(--ink-faint); text-transform: none; letter-spacing: 0; }
+
+/* ============================================================================
+   v16 — LIQUID GLASS. One material system for both themes: translucent panels
+   floating over an ambient aurora, lit by an inner top edge, blurred depth
+   behind every surface. All color through tokens — [data-theme] does the rest.
+   ========================================================================== */
+
+/* ---------- the room the glass lives in: ambient aurora ---------- */
+body {
+  background:
+    radial-gradient(1000px 640px at 82% -12%, var(--aurora-a), transparent 62%),
+    radial-gradient(880px 600px at -6% 30%, var(--aurora-b), transparent 58%),
+    radial-gradient(760px 560px at 68% 112%, var(--aurora-c), transparent 60%),
+    linear-gradient(172deg, var(--bg-1), var(--bg-0) 64%);
+  background-attachment: fixed;
+  transition: color 0.2s ease;
+}
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border: 2px solid transparent; background-clip: padding-box; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); background-clip: padding-box; }
+::selection { background: rgba(23, 201, 182, 0.3); }
+
+.wordmark-my { color: var(--ink-faint); }
+.wordmark-agent { color: var(--ink); }
+
+/* ---------- glass panels ---------- */
+.panel {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.5);
+  backdrop-filter: blur(var(--blur)) saturate(1.5);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm);
+}
+.panel::after { display: none; }
+
+/* rows & tiles become lighter glass chips sitting on the panels */
+.task-row, .proj-row, .file-row, .tree-file, .db-col, .chatfile, .method-card,
+.wcard, .step, .cap, .anode, .ov-tile, .gauge, .hstat {
+  background: var(--glass-soft) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm) !important;
+}
+.well, .feed-scroll, .task-scroll, .db-rows, .ov-feed, .proj-scroll, .file-text, .reader-body {
+  background: var(--well) !important;
+  box-shadow: inset 0 1px 3px rgba(2, 8, 20, 0.06) !important;
+}
+.agent-row, .kb-tile, .type-card, .wizard-conn, .plan-card, .starter-chip, .feed-icon, .astat {
+  background: var(--glass-soft);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm);
+}
+.kb-tile b { color: var(--cyan-deep); }
+.type-card:hover { border-color: var(--cyan); background: var(--glass); }
+.type-card.on { background: linear-gradient(180deg, rgba(23, 201, 182, 0.16), rgba(23, 201, 182, 0.05)); border-color: var(--cyan); }
+.type-note { background: linear-gradient(180deg, rgba(23, 201, 182, 0.10), rgba(23, 201, 182, 0.03)); border-color: rgba(23, 201, 182, 0.3); }
+
+/* ---------- floating glass nav ---------- */
+.appnav {
+  position: sticky; top: 10px; z-index: 90;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(26px) saturate(1.6);
+  backdrop-filter: blur(26px) saturate(1.6);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow);
+}
+.tab { color: var(--ink-dim); border-radius: 10px; transition: background 0.15s, color 0.15s; }
+.tab:hover { color: var(--ink); background: var(--well); }
+.tabs .tab.on {
+  background: linear-gradient(180deg, #1dd3bf, #0fb5a4);
+  color: #04211d; font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 4px 14px rgba(15, 181, 164, 0.35);
+}
+.tabs .tab.on .icon { color: #04211d; }
+.tab-sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; align-self: center; flex: none; }
+.theme-btn { border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+
+/* ---------- buttons: frosted neutral + luminous primary ---------- */
+.gel-btn {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  color: var(--ink); border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm);
+}
+.gel-btn::before { display: none; }
+.gel-btn:hover { filter: none; background: var(--glass-strong); border-color: var(--ink-faint); }
+.gel-btn:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(2, 8, 20, 0.15); }
+.gel-primary, .gel-btn.gel-primary {
+  color: #04211d; border: 1px solid rgba(10, 143, 134, 0.35); font-weight: 700;
+  background: linear-gradient(180deg, #52ead9, #17c9b6 55%, #0fae9e);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 2px 6px rgba(10, 143, 134, 0.25), 0 8px 24px rgba(23, 201, 182, 0.35);
+}
+.gel-primary:hover { filter: brightness(1.05); background: linear-gradient(180deg, #5ff2e1, #1dd3bf 55%, #12b8a7); }
+.mini-btn { background: var(--glass); color: var(--ink-dim); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+.mini-btn:hover { background: var(--glass-strong); color: var(--ink); }
+.option-btn { background: rgba(23, 201, 182, 0.10); border-color: rgba(23, 201, 182, 0.4); color: var(--cyan-deep); }
+
+/* ---------- inputs ---------- */
+.field, .select {
+  background: var(--well); border: 1px solid var(--line); color: var(--ink);
+  box-shadow: inset 0 1px 3px rgba(2, 8, 20, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder { color: var(--ink-faint); }
+.field:focus, .select:focus {
+  outline: none; border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(23, 201, 182, 0.18), inset 0 1px 3px rgba(2, 8, 20, 0.05);
+  background: var(--glass);
+}
+
+/* ---------- chat bubbles ---------- */
+.bubble-row.agent .bubble {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm);
+}
+.bubble-row.mine .bubble {
+  background: linear-gradient(180deg, #1dd3bf, #0fa898);
+  color: #03201c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 14px rgba(15, 181, 164, 0.3);
+}
+.bubble-row.mine .bubble-who { color: rgba(3, 32, 28, 0.6); }
+
+/* ---------- modals / wizard / auth: heavy glass, blurred world behind ---------- */
+.modal-backdrop { background: rgba(4, 10, 22, 0.45); -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2); }
+.modal, .wizard-card, .auth-card, .welcome .wcard {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow);
+}
+.net-badge { background: var(--glass); border: 1px solid var(--line); color: var(--ink-dim); box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm); }
+.count-chip { background: var(--well); color: var(--cyan-deep); border: 1px solid var(--line); box-shadow: none; }
+
+/* ---------- toasts ---------- */
+.toast {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border: 1px solid var(--line); color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow);
+}
+
+/* ---------- dark-theme fixes for colors the light theme hardcoded ---------- */
+[data-theme='dark'] .feed-line.thought .feed-text { color: var(--cyan-deep); }
+[data-theme='dark'] .result-text { color: var(--green); }
+[data-theme='dark'] .proj-glyph, [data-theme='dark'] .proj-glyph.big { color: var(--cyan-bright); }
+[data-theme='dark'] .toaster .toast { color: var(--ink); }
+[data-theme='dark'] .reader-backdrop { background: rgba(2, 6, 14, 0.6); }
+[data-theme='dark'] .modal-backdrop { background: rgba(2, 6, 14, 0.6); }
+[data-theme='dark'] .bar-val { color: var(--cyan-deep); }
+[data-theme='dark'] .secret-box { background: var(--well); color: var(--cyan-deep); }
+
+/* ---------- the spinning globe: Atlas is thinking ---------- */
+.mark-spinning .mark-land {
+  animation: markSpin 3.2s linear infinite;
+  transform-origin: 32px 32px;
+  transform-box: view-box;
+}
+@keyframes markSpin { to { transform: rotate(360deg); } }
+.thinking-globe { display: inline-flex; align-items: center; gap: 9px; padding: 2px 0; }
+.thinking-globe svg { filter: drop-shadow(0 0 8px rgba(23, 201, 182, 0.45)); }
+.thinking-label {
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0.2px;
+  background: linear-gradient(90deg, var(--ink-faint) 20%, var(--cyan-deep) 50%, var(--ink-faint) 80%);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: thinkShimmer 1.8s linear infinite;
+}
+@keyframes thinkShimmer { to { background-position: -200% 0; } }
+.boot { color: var(--ink-dim); font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mark-spinning .mark-land, .thinking-label { animation: none; }
+}
+
+/* nav must never spill: tabs scroll invisibly, right side stays pinned */
+.appnav { flex-wrap: nowrap; gap: 10px; }
+.tabs { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.nav-right { flex: none; }
+@media (max-width: 1280px) { .nav-user { display: none; } }

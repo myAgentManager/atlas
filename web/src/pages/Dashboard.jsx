@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Icon } from '../icons.jsx';
+import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 
 // The Command Deck — where a business runs its AI agents. Build an agent, give
@@ -223,7 +223,7 @@ function TestChat({ agent }) {
         ))}
         {typing && (
           <div className="bubble-row agent">
-            <div className="bubble typing"><div className="bubble-who">{agent.name}</div><div className="typing-dots"><span /><span /><span /></div></div>
+            <div className="bubble typing"><div className="bubble-who">{agent.name}</div><div className="thinking-globe"><Mark size={20} spin /><span className="thinking-label">thinking…</span></div></div>
           </div>
         )}
       </div>

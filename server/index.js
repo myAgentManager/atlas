@@ -855,7 +855,7 @@ app.get('/api/stream', auth.requireAuth, (req, res) => {
 // ============================================================================
 app.get('/healthz', (_req, res) => res.json({ ok: true, db: dbMode, uptime: Math.floor(process.uptime()) }));
 
-// On single-port hosts (Render/Heroku-style), set ADMIN_MOUNT=path to serve the
+// On single-port hosts (Northflank/Heroku-style), set ADMIN_MOUNT=path to serve the
 // admin console at /atlas-admin on the main port instead of its own port.
 const adminApp = startAdmin({ enqueue });
 if (adminApp) app.use('/atlas-operations', adminApp);

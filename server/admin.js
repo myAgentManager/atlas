@@ -28,7 +28,7 @@ function ipAllowed() { return true; }
 
 export function startAdmin({ enqueue }) {
   const app = express();
-  if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // real client IPs behind Render/nginx
+  if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // real client IPs behind Northflank/nginx
   app.use((req, res, next) => (ipAllowed(req) ? next() : res.status(404).type('text/plain').send('Not Found')));
   app.use(express.json());
 

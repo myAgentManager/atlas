@@ -40,37 +40,39 @@ curl -H "Authorization: Bearer <your-key>" \
 Endpoints: `GET /api/v1/me`, `GET|POST /api/v1/tasks`, `GET /api/v1/tasks/:id`,
 `POST /api/v1/chat`.
 
-## Deploy to the cloud — free
+## Deploy to the cloud
 
 myAgent is built to run as a hosted platform: you run it once in the cloud,
 users sign up and get their own private accounts, files, and agent.
 
-**Free stack: [Render](https://render.com) (web service) + [Neon](https://neon.tech) (Postgres).**
-Neither requires a credit card.
+**Stack: [Northflank](https://northflank.com) (Docker service) + [Neon](https://neon.tech) (Postgres).**
+The included [`Dockerfile`](Dockerfile) builds the whole platform — UI and all —
+into one container. Full step-by-step: [docs/DEPLOY-NORTHFLANK.md](docs/DEPLOY-NORTHFLANK.md).
+
+The short version:
 
 1. **Database (Neon):** create a free project → copy the connection string
    (`postgres://…?sslmode=require`).
-2. **Push this repo to GitHub**, then on Render: *New → Blueprint* and pick the
-   repo — [`render.yaml`](render.yaml) configures everything. When prompted:
-   - `DATABASE_URL` → your Neon string
+2. **Northflank:** create a project → *Add service → Combined service* → pick
+   this repo on GitHub → build type **Dockerfile** → networking: HTTP port
+   **8787**, publicly exposed → health check path `/healthz`.
+3. **Environment** (service → *Environment*):
+   - `DATABASE_URL` → your Neon string (add as a **secret**)
    - `ADMIN_CODE` → your own secret code (don't ship the default)
-3. Deploy. Open your Render URL → create the first account (it becomes owner).
-   The **admin console** is at `https://your-app.onrender.com/atlas-operations`
-   (single-port hosts use `ADMIN_MOUNT=path`; locally it stays on its own port).
-4. In the admin console → *Platform*, set the **public base URL** to your
-   Render URL — share links and OAuth callbacks use it.
+   - `ADMIN_MOUNT` → `path` (Operations console rides the same port)
+   - `TRUST_PROXY` → `1`
+4. Deploy. Open your Northflank URL → create the first account (it becomes
+   owner). The **Operations console** is at `https://your-app.code.run/atlas-operations`.
+5. In the Operations console → *Platform*, set the **public base URL** to your
+   Northflank URL — share links and OAuth callbacks use it.
 
 With `DATABASE_URL` set, **users, sessions, tasks, chats, and every account's
-files live in Postgres** — nothing depends on the host's disk, so free-tier
-restarts lose nothing. Without it, everything falls back to local JSON files
-(perfect for developing on your own machine).
+files live in Postgres** — nothing depends on the host's disk, so redeploys
+and restarts lose nothing. Without it, everything falls back to local JSON
+files (perfect for developing on your own machine).
 
-> Free-tier note: Render spins the service down after ~15 idle minutes; the
-> first visit after that takes a few seconds to wake. Interval/overnight
-> schedules fire while the service is awake.
-
-Works the same on any host that gives you Node + env vars (Koyeb, Fly,
-Railway, a VPS) — or use the included [`Dockerfile`](Dockerfile).
+Works the same on any host that runs a Docker image with env vars (Fly,
+Railway, Koyeb, a VPS).
 
 ## Run it locally
 

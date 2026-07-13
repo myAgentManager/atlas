@@ -5,5 +5,7 @@ data
 workspace
 .env
 .git
+.claude
+docs
 *.log
 .DS_Store

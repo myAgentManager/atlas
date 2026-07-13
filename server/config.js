@@ -44,7 +44,7 @@ export const config = Object.freeze({
   port: Number(process.env.PORT) || 8787,
   adminPort: Number(process.env.ADMIN_PORT) || 8788,
   // 'port' → own port (default). 'path' → /atlas-admin on the main port, for
-  // single-port cloud hosts like Render.
+  // single-port cloud hosts like Northflank.
   adminMount: process.env.ADMIN_MOUNT === 'path' ? 'path' : 'port',
   adminCode: process.env.ADMIN_CODE || '782677',
   secret: loadSecret(),

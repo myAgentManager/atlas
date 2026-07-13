@@ -10,6 +10,7 @@ export default function Settings({ user, setUser, agent, onDeleted }) {
       <Profile user={user} setUser={setUser} />
       <Personalization user={user} setUser={setUser} agent={agent} />
       <Security user={user} setUser={setUser} agent={agent} />
+      <AtlasSupport />
       <Notifications user={user} setUser={setUser} agent={agent} />
       <Integrations user={user} setUser={setUser} />
       <DevApi user={user} setUser={setUser} />
@@ -29,6 +30,32 @@ function Section({ icon, title, children }) {
       <div className="panel-title"><Icon name={icon} size={14} /> {title}</div>
       {children}
     </div>
+  );
+}
+
+/* ---------- Atlas Support ---------- */
+// Your account is private — Atlas Networks staff can't look inside it. If you
+// want help with your agents, generate a code here and read it to support;
+// it unlocks an agent-setup view (never conversations or customers) for 1 hour.
+function AtlasSupport() {
+  const [code, setCode] = useState('');
+  const [flash, show] = useFlash();
+  const generate = () => api.supportCode().then((r) => setCode(r.code)).catch((e) => show(e.message));
+  return (
+    <Section icon="shield" title="Atlas Support">
+      <p className="dim-note">
+        Your account is private — staff can't see inside it. If you contact support about your
+        agents, generate a code and share it; it unlocks a view of your <b>agent setup only</b>
+        (never your conversations, customers, or files) and expires in an hour.
+      </p>
+      {code
+        ? <div className="secret-box mono support-code">{code.slice(0, 4)} {code.slice(4)}</div>
+        : null}
+      <div className="set-actions">
+        <span className="flash">{flash}</span>
+        <button className="gel-btn" onClick={generate}>{code ? 'Generate a new code' : 'Generate support code'}</button>
+      </div>
+    </Section>
   );
 }
 

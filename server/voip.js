@@ -79,8 +79,10 @@ export function handleTurn({ user, callId, caller, text }) {
   }
 
   const heard = String(text).slice(0, 500);
+  const convo = biz.getConversation(user.id, call.convoId);
+  const history = (convo?.messages || []).filter((m) => m.from === 'agent').slice(-6).map((m) => m.text);
   biz.addMessage(user.id, call.convoId, 'customer', heard);
-  const reply = agentsMod.handle(user.id, agent, heard, { greeted: call.greeted, channel: 'voip' });
+  const reply = agentsMod.handle(user.id, agent, heard, { greeted: call.greeted, channel: 'voip', history });
   call.greeted = true;
   biz.addMessage(user.id, call.convoId, 'agent', reply.text);
 

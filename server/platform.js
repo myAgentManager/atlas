@@ -11,6 +11,8 @@ const DEFAULTS = {
   apple: { enabled: false, serviceId: '', teamId: '', keyId: '', privateKey: '' },
   // Stripe billing keys — set here in Operations (env vars still work as fallback).
   stripe: { secretKey: '', publishableKey: '', webhookSecret: '', priceStarter: '', pricePro: '', priceGrowth: '' },
+  // Service lock: flip on to pause myAgent for everyone but staff.
+  locked: { enabled: false, message: '' },
   // Messaging + 2SV channels, all admin-controlled and independently switchable.
   channels: {
     sms: { enabled: false, sid: '', token: '', from: '' },   // Twilio: notifications + SMS 2SV
@@ -25,6 +27,7 @@ const saved = getDoc('platform', {});
 let state = {
   ...DEFAULTS, ...saved,
   stripe: { ...DEFAULTS.stripe, ...(saved.stripe || {}) },
+  locked: { ...DEFAULTS.locked, ...(saved.locked || {}) },
   channels: { ...DEFAULTS.channels, ...(saved.channels || {}),
     sms: { ...DEFAULTS.channels.sms, ...(saved.channels?.sms || {}) },
     email: { ...DEFAULTS.channels.email, ...(saved.channels?.email || {}) },
@@ -60,6 +63,7 @@ export function setPlatform(patch = {}) {
     google: { ...state.google, ...(patch.google || {}) },
     apple: { ...state.apple, ...(patch.apple || {}) },
     stripe: { ...state.stripe, ...(patch.stripe || {}) },
+    locked: { ...state.locked, ...(patch.locked || {}) },
     channels: {
       ...state.channels,
       sms: { ...state.channels.sms, ...(pc.sms || {}) },
@@ -76,6 +80,7 @@ export function setPlatform(patch = {}) {
 // What the public /api/agent endpoint may reveal (no secrets).
 export function publicPlatform() {
   return {
+    locked: state.locked.enabled ? { enabled: true, message: state.locked.message || 'myAgent is temporarily unavailable — back soon.' } : { enabled: false },
     registrationOpen: state.registrationOpen,
     providers: {
       google: Boolean(state.google.enabled && state.google.clientId),

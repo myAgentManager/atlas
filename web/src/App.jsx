@@ -28,6 +28,14 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [chat, setChat] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [lockMsg, setLockMsg] = useState('');
+
+  // platform service lock — any 423 from the API flips the lock screen on
+  useEffect(() => {
+    const onLock = (e) => setLockMsg(e.detail || 'myAgent is temporarily unavailable — back soon.');
+    window.addEventListener('atlas-locked', onLock);
+    return () => window.removeEventListener('atlas-locked', onLock);
+  }, []);
 
   const reload = useCallback(() => {
     if (!user) return;
@@ -81,6 +89,16 @@ export default function App() {
   const signedOut = () => { setUser(null); setTasks([]); setChat([]); setView('home'); };
 
   if (!booted) return <div className="boot"><Mark size={34} spin /> waking ATLAS…</div>;
+
+  if (lockMsg) {
+    return (
+      <div className="lock-screen">
+        <Mark size={56} />
+        <h1>myAgent is locked</h1>
+        <p>{lockMsg}</p>
+      </div>
+    );
+  }
 
   if (view === 'home') {
     return <Homepage agent={agent} connected={connected} tasks={tasks} user={user}

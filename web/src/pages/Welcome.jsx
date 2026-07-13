@@ -3,6 +3,8 @@ import { api } from '../api.js';
 import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 import { grasp } from '../understanding.js';
+import HoursPicker, { composeHours, defaultGroups } from '../HoursPicker.jsx';
+import { formatPhone } from '../format.js';
 
 // First-run setup wizard. Name + kind of business → the basics Atlas answers
 // with on day one (hours, phone) → plan → optional tools → required 2SV for
@@ -11,8 +13,14 @@ export default function Welcome({ agent, user, onDone, onGo }) {
   const [step, setStep] = useState(0);
   const [bizName, setBizName] = useState('');
   const [bizType, setBizType] = useState('');
+  const [hourGroups, setHourGroups] = useState(defaultGroups());
+  const [manualHours, setManualHours] = useState(false);
   const [hours, setHours] = useState('');
   const [phone, setPhone] = useState('');
+  const [firstName, setFirstName] = useState((user?.name || '').split(' ')[0] || '');
+  const [lastName, setLastName] = useState((user?.name || '').split(' ').slice(1).join(' ') || '');
+  const [address, setAddress] = useState('');
+  const [website, setWebsite] = useState('');
   const [planId, setPlanId] = useState('free');
   const [plans, setPlans] = useState([]);
   const [archetypes, setArchetypes] = useState([]);
@@ -35,7 +43,15 @@ export default function Welcome({ agent, user, onDone, onGo }) {
     setStep(1);
   };
   const saveBasics = async () => {
-    await api.setProfile({ hours: hours.trim(), phone: phone.trim() }).catch(() => {});
+    const hoursStr = manualHours ? hours.trim() : composeHours(hourGroups);
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    if (fullName && fullName !== user?.name) api.updateMe({ name: fullName }).catch(() => {});
+    await api.setProfile({
+      hours: hoursStr,
+      phone: formatPhone(phone),
+      address: address.trim(),
+      website: website.trim(),
+    }).catch(() => {});
     setStep(2);
   };
   const savePlan = async () => {
@@ -88,17 +104,38 @@ export default function Welcome({ agent, user, onDone, onGo }) {
         {step === 1 && (
           <div className="wizard-body">
             <h1>The basics</h1>
-            <p className="wizard-sub">The two things customers ask first. Your agent answers with these from day one — you can fill in the rest later under Business.</p>
-            <label className="auth-label">Opening hours
-              <input className="field" placeholder="e.g. Mon–Sat 7am–6pm, Sun 8am–2pm" value={hours} onChange={(e) => setHours(e.target.value)} />
-            </label>
-            <div className="preset-row">
-              {['Mon–Fri 9am–5pm', 'Mon–Sat 8am–6pm', 'Every day 8am–8pm', 'Tue–Sun 11am–10pm'].map((h) => (
-                <button key={h} type="button" className={`preset-chip ${hours === h ? 'on' : ''}`} onClick={() => setHours(h)}>{h}</button>
-              ))}
+            <p className="wizard-sub">What customers ask first. Your agent answers with these from day one — everything's editable later under Business.</p>
+            <div className="biz-grid">
+              <label className="auth-label">Your first name
+                <input className="field" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Hunter" />
+              </label>
+              <label className="auth-label">Last name
+                <input className="field" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Stamps" />
+              </label>
             </div>
-            <label className="auth-label">Business phone
-              <input className="field" placeholder="+1 555 555 0100" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveBasics()} />
+            <div className="cap-pick-label">Opening hours <span className="dim-note-inline">(tap the days, drag the handles)</span></div>
+            {manualHours ? (
+              <>
+                <input className="field" placeholder="e.g. Mon–Sat 7am–6pm, Sun 8am–2pm" value={hours} onChange={(e) => setHours(e.target.value)} />
+                <button className="text-link hp-add" onClick={() => setManualHours(false)}>Use the picker instead</button>
+              </>
+            ) : (
+              <>
+                <HoursPicker groups={hourGroups} setGroups={setHourGroups} />
+                <p className="hp-preview">{composeHours(hourGroups) || 'Pick at least one day'} · <button className="text-link" onClick={() => { setHours(composeHours(hourGroups)); setManualHours(true); }}>type manually instead</button></p>
+              </>
+            )}
+            <div className="biz-grid">
+              <label className="auth-label">Business phone
+                <input className="field" placeholder="+1 (555) 555-0100" value={phone}
+                  onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(formatPhone(e.target.value))} />
+              </label>
+              <label className="auth-label">Website
+                <input className="field" placeholder="https://yourbusiness.com" value={website} onChange={(e) => setWebsite(e.target.value)} />
+              </label>
+            </div>
+            <label className="auth-label">Business address
+              <input className="field" placeholder="12 Bean Street, Portland, OR" value={address} onChange={(e) => setAddress(e.target.value)} />
             </label>
             <div className="wizard-foot">
               <button className="gel-btn" onClick={() => setStep(0)}>Back</button>
@@ -141,7 +178,7 @@ export default function Welcome({ agent, user, onDone, onGo }) {
                 </div>
               ))}
             </div>
-            <button className="text-link" onClick={() => { api.updateMe({ welcomed: true }).catch(() => {}); onGo('integrations'); }}>Open Integrations to connect tools →</button>
+            <p className="dim-note">You'll find all of these under Integrations after setup — nothing here is required today.</p>
             <div className="wizard-foot">
               <button className="gel-btn" onClick={() => setStep(2)}>Back</button>
               <button className="gel-btn gel-primary" onClick={() => setStep(4)}>Continue <Icon name="arrow" size={15} /></button>

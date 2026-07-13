@@ -3,6 +3,8 @@ import { api } from '../api.js';
 import { Icon } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 import { grasp } from '../understanding.js';
+import HoursPicker, { composeHours, defaultGroups } from '../HoursPicker.jsx';
+import { formatPhone } from '../format.js';
 
 // What the agents learn: the business profile, contact details, human routing,
 // and the FAQ. A clean form panel, like the integrations deck.
@@ -12,6 +14,8 @@ export default function Business() {
   const [archetypes, setArchetypes] = useState([]);
   const [savingP, setSavingP] = useState(false);
   const [savingF, setSavingF] = useState(false);
+  const [pickHours, setPickHours] = useState(false);
+  const [hourGroups, setHourGroups] = useState(defaultGroups());
 
   useEffect(() => {
     api.business().then((b) => { setP(b.profile); setFaqs(b.faqs.length ? b.faqs : [{ q: '', a: '' }]); }).catch(() => {});
@@ -72,9 +76,21 @@ export default function Business() {
         )}
         <label className="auth-label">About — what should agents know?<textarea className="field textarea" rows={3} {...field('about')} placeholder="A cozy neighborhood cafe specializing in single-origin espresso and fresh pastries. We also cater events." /></label>
         <div className="biz-grid">
-          <label className="auth-label">Hours<input className="field" {...field('hours')} placeholder="Mon–Sat 7am–6pm, Sun 8am–2pm" /></label>
+          <label className="auth-label">Hours
+            <input className="field" {...field('hours')} placeholder="Mon–Sat 7am–6pm, Sun 8am–2pm" />
+            <button type="button" className="text-link hp-add" onClick={() => setPickHours(!pickHours)}>{pickHours ? 'Hide the picker' : 'Build them visually instead'}</button>
+          </label>
           <label className="auth-label">Services / products<input className="field" {...field('services')} placeholder="espresso, pastries, catering" /></label>
         </div>
+        {pickHours && (
+          <div className="hp-inline">
+            <HoursPicker groups={hourGroups} setGroups={setHourGroups} />
+            <div className="set-actions">
+              <span className="hp-preview">{composeHours(hourGroups) || 'Pick at least one day'}</span>
+              <button type="button" className="gel-btn" onClick={() => { setP({ ...p, hours: composeHours(hourGroups) }); setPickHours(false); }}>Use these hours</button>
+            </div>
+          </div>
+        )}
         <div className="biz-grid">
           <label className="auth-label">Languages<input className="field" {...field('languages')} placeholder="English, Spanish" /></label>
           <label className="auth-label">Tone
@@ -90,7 +106,7 @@ export default function Business() {
         <div className="panel-title"><Icon name="plug" size={14} /> Contact &amp; routing</div>
         <p className="dim-note">Agents share these with customers, and hand off to a real person when things get sensitive.</p>
         <div className="biz-grid">
-          <label className="auth-label">Phone<input className="field" {...field('phone')} placeholder="+1 555 555 0100" /></label>
+          <label className="auth-label">Phone<input className="field" {...field('phone')} onBlur={(e) => setP({ ...p, phone: formatPhone(e.target.value) })} placeholder="+1 (555) 555-0100" /></label>
           <label className="auth-label">Public email<input className="field" {...field('email')} placeholder="hello@business.com" /></label>
         </div>
         <div className="biz-grid">

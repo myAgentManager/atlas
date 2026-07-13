@@ -117,9 +117,10 @@ export function createUser({ email, name, password, provider, providerId }) {
     // Only OAuth identities (provider already verified the email) and the very
     // first account (no email channel exists yet to send through) are exempt.
     emailVerified: Boolean(provider) || usersDb.users.length === 0,
-    // Atlas Networks staff (company email or first account) are founders; they
-    // reach the Operations + Strategy consoles. Everyone else is a business owner.
-    founder: email.endsWith('@atlasnetworks.com') || usersDb.users.length === 0,
+    // Admin privileges belong to @atlasnetworks.com addresses ONLY — the first
+    // account no longer gets them by default (the Operations console has its
+    // own access code for platform administration).
+    founder: email.endsWith('@atlasnetworks.com'),
     plan: 'free',
     subscription: { plan: 'free', status: 'active', since: Date.now(), stripeCustomer: null, stripeSub: null },
     totp: { secret: null, enabled: false, backup: [] },
@@ -304,7 +305,26 @@ export function trustValid(token, userId) {
 
 export function attach(req, _res, next) {
   req.user = sessionUser(parseCookies(req).ma_sess) || null;
+  // coarse presence stamp (≥5-minute granularity) — Operations only ever
+  // reveals it once an account has been idle for months
+  if (req.user && (!req.user.lastSeen || Date.now() - req.user.lastSeen > 5 * 60_000)) {
+    updateUser(req.user.id, (u) => { u.lastSeen = Date.now(); });
+  }
   next();
+}
+
+// --- Atlas Support codes ---------------------------------------------------------
+// An account holder generates a short-lived code in their Settings; staff can
+// open the agent-related support view in Operations ONLY while holding it.
+const supportCodes = new Map(); // userId -> { code, exp }
+export function createSupportCode(userId) {
+  const code = crypto.randomInt(0, 100_000_000).toString().padStart(8, '0');
+  supportCodes.set(userId, { code, exp: Date.now() + 3600e3 });
+  return code;
+}
+export function checkSupportCode(userId, code) {
+  const e = supportCodes.get(userId);
+  return Boolean(e && e.exp > Date.now() && String(code || '').trim() === e.code);
 }
 export function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'sign in required' });

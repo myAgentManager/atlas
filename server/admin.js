@@ -11,6 +11,10 @@ import { stopTask, isRunning } from './agent.js';
 import { engineInfo } from './atlas/core.js';
 import { getPlatform, setPlatform } from './platform.js';
 import { sendEmail } from './email.js';
+import * as agents from './agents.js';
+import * as biz from './business.js';
+import * as kb from './atlas/kb.js';
+import * as connectors from './connectors.js';
 
 const adminSessions = new Map(); // token -> exp
 const SESSION_MS = 12 * 3600_000;
@@ -71,12 +75,38 @@ export function startAdmin({ enqueue }) {
     });
   });
 
+  // Privacy-first account list: creation date always; activity ONLY once an
+  // account has been idle 2+ months. What they do day-to-day is their business.
+  const TWO_MONTHS = 61 * 864e5;
   app.get('/api/users', guard, (_req, res) => {
     res.json(auth.listUsers().map((u) => ({
       id: u.id, email: u.email, name: u.name, role: u.role, disabled: u.disabled,
-      twoStep: u.totp.enabled, createdAt: u.createdAt,
-      tasks: store.listTasks(u.id).length,
+      founder: Boolean(u.founder),
+      twoStep: u.totp.enabled || Boolean(u.second?.method),
+      createdAt: u.createdAt,
+      inactiveSince: u.lastSeen && Date.now() - u.lastSeen > TWO_MONTHS ? u.lastSeen : null,
     })));
+  });
+
+  // Agent-related support view — unlocked ONLY by the account holder's Atlas
+  // Support code (generated in their Settings, expires in an hour). No files,
+  // no conversations, no customer data: just what's needed to help with agents.
+  app.post('/api/users/:id/support', guard, (req, res) => {
+    const u = auth.getUser(req.params.id);
+    if (!u) return res.status(404).json({ error: 'no such account' });
+    if (!auth.checkSupportCode(u.id, req.body?.code)) {
+      auth.audit('admin', `support view DENIED (bad/expired code) for ${u.email}`);
+      return res.status(401).json({ error: 'That support code is wrong or expired. Ask the customer to generate a fresh one in Settings.' });
+    }
+    auth.audit('admin', `support view opened for ${u.email} (customer-provided code)`);
+    const b = biz.getBusiness(u.id);
+    const conns = connectors.status(u.id);
+    res.json({
+      business: { name: b.profile.name, type: b.profile.type || b.profile.typeDetected || 'unknown', trained: b.profile.trained },
+      agents: agents.listAgents(u.id).map((a) => ({ name: a.name, status: a.status, capabilities: a.capabilities, handled: a.stats?.handled || 0 })),
+      knowledge: (({ facts, gaps }) => ({ facts, gaps }))(kb.kbStats(u.id)),
+      connected: Object.entries(conns).filter(([, on]) => on).map(([id]) => id),
+    });
   });
   app.post('/api/users/:id/role', guard, (req, res) => {
     const u = auth.updateUser(req.params.id, (u) => { u.role = u.role === 'owner' ? 'member' : 'owner'; });
@@ -294,11 +324,21 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   <div style="text-align:right"><span id="s_flash" style="color:var(--green);font-size:13px;margin-right:12px"></span>
   <button class="btn" onclick="saveStripe()">Save payments</button></div>
 </div></div></div>
-<div class="panel"><h2>${LOCK_SVG} Accounts</h2><table id="users"></table></div>
+<div class="panel"><h2>${LOCK_SVG} Accounts</h2>
+<p class="hint" style="margin-bottom:12px">Privacy-first: you see when an account was created; activity shows only after 2 months idle. Agent-related help requires the customer's <b>Atlas Support code</b> (they generate it in Settings — expires in an hour).</p>
+<table id="users"></table>
+<div class="panel" id="support" style="display:none;margin-top:14px"></div></div>
 <div class="panel"><h2>${LOCK_SVG} All tasks</h2><table id="tasks"></table></div>
 <div class="panel"><h2>${LOCK_SVG} Audit log</h2><div class="log" id="log"></div></div>
 <div class="panel"><h2 style="color:var(--red)">${LOCK_SVG} Danger zone</h2>
-<button class="btn bad" onclick="if(confirm('Wipe ALL tasks for ALL accounts?'))api('/api/danger/wipe-tasks','POST')">Wipe all tasks</button></div>
+<div class="pform"><div class="prov">
+  <div class="prov-head"><b>Service lock</b><label class="row"><input type="checkbox" id="lk_on"> locked</label></div>
+  <div class="hint">Pauses myAgent for every business: customers and owners see your message, agents stop answering email and calls. Staff accounts keep working.</div>
+  <label>Lock message <input id="lk_msg" placeholder="Down for maintenance — back within the hour."></label>
+  <div style="text-align:right"><span id="lk_flash" style="color:var(--green);font-size:13px;margin-right:12px"></span>
+  <button class="btn warn" onclick="saveLock()">Save lock</button></div>
+</div></div>
+<button class="btn bad" style="margin-top:12px" onclick="if(confirm('Wipe ALL tasks for ALL accounts?'))api('/api/danger/wipe-tasks','POST')">Wipe all tasks</button></div>
 </div><script>
 const $=(s)=>document.querySelector(s);
 const BASE=location.pathname.replace(/\\/$/,'');
@@ -311,12 +351,12 @@ async function refresh(){
   $('#host').textContent=o.host+' · node '+o.node;
   $('#stats').innerHTML=[['Accounts',o.users],['Tasks',o.tasks.total],['Running',o.tasks.running],['Total runs',o.tasks.runs],['Uptime',Math.floor(o.uptimeSec/3600)+'h '+Math.floor(o.uptimeSec%3600/60)+'m'],['Memory',o.rssMb+' MB'],['Load',o.load],['Engine',o.engine.engine+' v'+o.engine.version],['Skills',o.engine.skills??'—'],['Intents',o.engine.intents??'—'],['Vocabulary',o.engine.vocab??'—']].map(([l,v])=>'<div class="stat"><b>'+v+'</b><span>'+l+'</span></div>').join('');
   const users=await api('/api/users');
-  $('#users').innerHTML='<tr><th>Account</th><th>Role</th><th>2SV</th><th>Tasks</th><th>Status</th><th></th></tr>'+users.map(u=>'<tr><td><b>'+esc(u.name)+'</b><br><span class="mono" style="color:var(--faint);font-size:11px">'+esc(u.email)+'</span></td><td><span class="tag">'+u.role+'</span></td><td><span class="tag '+(u.twoStep?'on':'')+'">'+(u.twoStep?'on':'off')+'</span></td><td>'+u.tasks+'</td><td><span class="tag '+(u.disabled?'off':'on')+'">'+(u.disabled?'disabled':'active')+'</span></td><td style="text-align:right;white-space:nowrap">'+
-    '<button class="btn" onclick="act(\\'/api/users/'+u.id+'/role\\')">role</button> '+
+  $('#users').innerHTML='<tr><th>Account</th><th>Role</th><th>2SV</th><th>Created</th><th>Activity</th><th>Status</th><th></th></tr>'+users.map(u=>'<tr><td><b>'+esc(u.name)+'</b><br><span class="mono" style="color:var(--faint);font-size:11px">'+esc(u.email)+'</span></td><td><span class="tag">'+(u.founder?'staff':u.role)+'</span></td><td><span class="tag '+(u.twoStep?'on':'')+'">'+(u.twoStep?'on':'off')+'</span></td><td style="color:var(--dim);font-size:12px">'+new Date(u.createdAt).toLocaleDateString()+'</td><td style="color:var(--faint);font-size:12px">'+(u.inactiveSince?('inactive since '+new Date(u.inactiveSince).toLocaleDateString()):'<span title="Hidden for privacy — shown after 2 months idle">—</span>')+'</td><td><span class="tag '+(u.disabled?'off':'on')+'">'+(u.disabled?'disabled':'active')+'</span></td><td style="text-align:right;white-space:nowrap">'+
+    '<button class="btn" onclick="supportView(\\''+u.id+'\\',\\''+esc(u.name)+'\\')">support</button> '+
     '<button class="btn warn" onclick="act(\\'/api/users/'+u.id+'/reset-2sv\\')">reset 2SV</button> '+
     '<button class="btn warn" onclick="resetPw(\\''+u.id+'\\')">reset pw</button> '+
     '<button class="btn warn" onclick="act(\\'/api/users/'+u.id+'/disable\\')">'+(u.disabled?'enable':'disable')+'</button> '+
-    '<button class="btn bad" onclick="if(confirm(\\'Delete '+esc(u.email)+' and their tasks?\\'))del(\\'/api/users/'+u.id+'\\')">delete</button></td></tr>').join('');
+    '<button class="btn bad" onclick="if(confirm(\\'Delete '+esc(u.email)+' and all their data?\\'))del(\\'/api/users/'+u.id+'\\')">delete</button></td></tr>').join('');
   const tasks=await api('/api/tasks');
   $('#tasks').innerHTML='<tr><th>Task</th><th>Owner</th><th>Status</th><th>Runs</th><th>Updated</th><th></th></tr>'+ (tasks.length?tasks.map(t=>'<tr><td><b>'+esc(t.title)+'</b></td><td class="mono" style="font-size:11.5px;color:var(--dim)">'+esc(t.owner)+'</td><td><span class="tag '+t.status+'">'+t.status+'</span></td><td>'+t.runCount+'</td><td style="color:var(--faint);font-size:12px">'+fmt(t.updatedAt)+'</td><td style="text-align:right;white-space:nowrap">'+(t.running?'<button class="btn warn" onclick="act(\\'/api/tasks/'+t.id+'/stop\\')">stop</button> ':'<button class="btn" onclick="act(\\'/api/tasks/'+t.id+'/run\\')">run</button> ')+'<button class="btn bad" onclick="del(\\'/api/tasks/'+t.id+'\\')">delete</button></td></tr>').join(''):'<tr><td style="color:var(--faint)">No tasks yet.</td></tr>');
   const log=await api('/api/log');
@@ -324,6 +364,22 @@ async function refresh(){
 }
 async function act(u){await api(u,'POST');refresh()}
 async function del(u){await api(u,'DELETE');refresh()}
+async function supportView(id,name){
+  const code=prompt('Ask the customer for their Atlas Support code (Settings → Atlas Support), then enter it:');
+  if(!code)return;
+  const r=await fetch(BASE+'/api/users/'+id+'/support',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code.trim()})});
+  const d=await r.json();
+  if(!r.ok)return alert(d.error||'Denied.');
+  const el=$('#support');
+  el.style.display='block';
+  el.innerHTML='<h3 style="margin-bottom:8px">Support view — '+esc(name)+' <button class="btn" style="float:right" onclick="this.parentNode.parentNode.style.display=\\'none\\'">close</button></h3>'+
+    '<div class="hint">Business: <b>'+esc(d.business.name||'(unnamed)')+'</b> · type: '+esc(d.business.type)+' · profile '+(d.business.trained?'filled in':'empty')+'</div>'+
+    '<div class="hint">Knowledge: '+d.knowledge.facts+' facts · '+d.knowledge.gaps+' unanswered gaps</div>'+
+    '<div class="hint">Connected tools: '+(d.connected.join(', ')||'none')+'</div>'+
+    '<table><tr><th>Agent</th><th>Status</th><th>Capabilities</th><th>Handled</th></tr>'+
+    (d.agents.length?d.agents.map(a=>'<tr><td><b>'+esc(a.name)+'</b></td><td><span class="tag '+(a.status==='active'?'on':'off')+'">'+a.status+'</span></td><td style="font-size:12px;color:var(--dim)">'+a.capabilities.join(', ')+'</td><td>'+a.handled+'</td></tr>').join(''):'<tr><td colspan="4" style="color:var(--faint)">No agents yet.</td></tr>')+'</table>';
+  el.scrollIntoView({behavior:'smooth'});
+}
 async function resetPw(id){const d=await api('/api/users/'+id+'/reset-password','POST');if(d.temp)prompt('Temporary password (share it securely):',d.temp);refresh()}
 
 async function loadPlatform(){
@@ -339,7 +395,15 @@ async function loadPlatform(){
   $('#s_secret').value=st.secretKey||'';$('#s_pub').value=st.publishableKey||'';$('#s_wh').value=st.webhookSecret||'';
   $('#s_ps').value=st.priceStarter||'';$('#s_pp').value=st.pricePro||'';$('#s_pg').value=st.priceGrowth||'';
   $('#s_mode').textContent=st.secretKey?'Billing is LIVE.':'Billing is in demo mode.';
+  const lk=p.locked||{};
+  $('#lk_on').checked=!!lk.enabled;$('#lk_msg').value=lk.message||'';
   updateCb();
+}
+async function saveLock(){
+  const body={locked:{enabled:$('#lk_on').checked,message:$('#lk_msg').value.trim()}};
+  const r=await fetch(BASE+'/api/platform',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.status===401)return location.reload();
+  $('#lk_flash').textContent=body.locked.enabled?'Locked.':'Unlocked.';setTimeout(()=>$('#lk_flash').textContent='',2500);
 }
 async function saveStripe(){
   const body={stripe:{secretKey:$('#s_secret').value.trim(),publishableKey:$('#s_pub').value.trim(),webhookSecret:$('#s_wh').value.trim(),

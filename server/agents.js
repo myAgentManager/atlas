@@ -64,6 +64,7 @@ export function handle(userId, agent, text, opts = {}) {
     greeted: Boolean(opts.greeted),
     channel: opts.channel || 'chat',
     can: { booking: has('bookings'), sales: has('sales') },
+    history: opts.history || [], // what it already told this customer
   });
 
   bumpStat(userId, agent.id, 'handled');

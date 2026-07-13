@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { getDoc, saveDoc } from './db.js';
 import { bus } from './bus.js';
 import { tokenize } from './atlas/nlu.js';
-import { newVoice, contract, pick } from './atlas/voice.js';
+import { newVoice, contract, pick, rephrase } from './atlas/voice.js';
 import * as kb from './atlas/kb.js';
 import { archetype, detectArchetype } from './atlas/archetypes.js';
 
@@ -58,8 +58,13 @@ function bestFaq(userId, text) {
   if (!q.size) return null;
   let best = null, score = 0;
   for (const f of biz(userId).faqs) {
-    const fq = tokenize(f.q + ' ' + f.a);
-    const overlap = fq.filter((w) => q.has(w)).length / Math.max(4, fq.length);
+    // match against the QUESTION first — a short customer message shouldn't be
+    // diluted by a long answer's word count
+    const fq = tokenize(f.q);
+    const fa = tokenize(f.q + ' ' + f.a);
+    const qScore = fq.filter((w) => q.has(w)).length / Math.max(2, fq.length);
+    const aScore = fa.filter((w) => q.has(w)).length / Math.max(4, fa.length);
+    const overlap = Math.max(qScore, aScore);
     if (overlap > score) { score = overlap; best = f; }
   }
   return score >= 0.18 ? best : null;
@@ -143,7 +148,7 @@ export const listInbox = (userId) => biz(userId).inbox;
 //   3. say it in its own words (voice engine), greeting only on first contact
 //   4. log what it couldn't answer as a knowledge gap, so it studies up
 // Returns thinkMs so the UI can pace the reply like someone actually typing.
-export function respond(userId, text, { greeted = false, channel = 'chat', can = { booking: true, sales: true } } = {}) {
+export function respond(userId, text, { greeted = false, channel = 'chat', can = { booking: true, sales: true }, history = [] } = {}) {
   const b = biz(userId);
   const p = b.profile;
   const r = newVoice(text + Date.now());
@@ -206,32 +211,51 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     intents.add('faq');
   }
 
-  // Skip anything that restates what we've already said (same idea, other words).
+  // Conversation memory: what we've already told this customer — both earlier
+  // in this reply AND in previous messages of the conversation. Anything that
+  // restates it (same idea, any words) gets skipped, so no more reciting the
+  // hours every single message.
+  const priorTokens = new Set((history || []).slice(-6).flatMap((t) => tokenize(String(t))).filter((w) => w.length > 3));
   const said = () => new Set(parts.flatMap((x) => tokenize(x)));
   const restates = (candidate) => {
     const ct = tokenize(candidate).filter((w) => w.length > 3);
     if (!ct.length) return false;
     const have = said();
-    return ct.filter((w) => have.has(w)).length / ct.length >= 0.6;
+    const nowScore = ct.filter((w) => have.has(w)).length / ct.length;
+    const beforeScore = ct.filter((w) => priorTokens.has(w)).length / ct.length;
+    return nowScore >= 0.6 || beforeScore >= 0.6;
+  };
+  const saidEarlier = (s) => {
+    const ht = tokenize(String(s || '')).filter((w) => w.length > 1);
+    return ht.length > 0 && ht.filter((w) => priorTokens.has(w)).length / ht.length >= 0.7;
   };
 
   // -- the FAQ + knowledge database (what Atlas has learned) ------------------
+  // Facts get said in Atlas's own words — copied, rephrased, then given.
+  const stem = (w) => w.replace(/(ing|ers?|es|ed|s)$/, '');
   const faq = bestFaq(userId, text);
+  let faqStems = null;
   if (faq?.a && !restates(faq.a)) {
-    parts.push(pick(r, ['', 'good question — ', 'yep — ', 'so, ']) + faq.a);
+    const ans = rephrase(r, faq.a);
+    // no "so, Yes," pile-ups — skip the opener when the answer already has one
+    const pre = /^(yes|yep|sure|absolutely|for sure|of course)/i.test(ans) ? '' : pick(r, ['', 'good question — ', 'so, ']);
+    parts.push(pre + ans);
     intents.add('faq');
+    faqStems = new Set(tokenize(faq.q + ' ' + faq.a).map(stem));
   }
   for (const f of kb.search(userId, text, 2)) {
     // the intent branches below answer visit/booking themselves — don't let a
     // knowledge fact say the same thing a second time in different words
     if ((explicitBook || wantsVisit) && /\b(book|booking|reservation|appointment|walk in|visit|class)\b/i.test(f.topic)) continue;
-    if (!restates(f.fact)) { parts.push(f.fact); intents.add('faq'); }
+    // the FAQ already covered this topic → one answer is enough
+    if (faqStems && tokenize(f.topic).map(stem).filter((w) => faqStems.has(w)).length > 0) continue;
+    if (!restates(f.fact)) { parts.push(rephrase(r, f.fact)); intents.add('faq'); }
   }
 
   // -- action intents: answer them the way THIS business would -----------------
   if ((explicitBook || wantsVisit) && !arch.bookable) {
     // walk-in business: nothing to book — just come on by
-    const hoursNote = p.hours && !saidHours;
+    const hoursNote = p.hours && !saidHours && !saidEarlier(`open hours ${p.hours}`);
     const line = pick(r, [
       `no booking needed — we're walk-in, just ${Day ? `swing by ${Day}` : 'swing by'}${hoursNote ? ` (we're open ${p.hours})` : ''}`,
       `${Day ? `${Day} works — ` : ''}just come on by, no appointment needed${hoursNote ? `. We're open ${p.hours}` : ''}`,

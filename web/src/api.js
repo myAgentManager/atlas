@@ -1,6 +1,10 @@
 // Thin client over the myAgent REST API. All requests ride the session cookie.
 const json = async (r) => {
   const data = await r.json().catch(() => ({}));
+  if (r.status === 423 && data.locked) {
+    // platform service lock — let the app switch to the lock screen
+    window.dispatchEvent(new CustomEvent('atlas-locked', { detail: data.error }));
+  }
   if (!r.ok) throw new Error(data.error || r.statusText);
   return data;
 };
@@ -69,6 +73,7 @@ export const api = {
   clearConnector: (id) => send(`/api/connectors/${id}`, 'DELETE'),
   archetypes: () => get('/api/archetypes'),
   voipSetup: () => get('/api/voip/setup'),
+  supportCode: () => post('/api/me/support-code'),
   agents: () => get('/api/agents'),
   createAgent: (body) => post('/api/agents', body),
   updateAgent: (id, body) => send(`/api/agents/${id}`, 'PATCH', body),

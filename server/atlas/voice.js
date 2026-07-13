@@ -91,3 +91,30 @@ export function compose(r, ...parts) {
     .replace(/\s{2,}/g, ' ')
     .trim());
 }
+
+// Say a stored fact in Atlas's OWN words — conservative phrase swaps plus
+// contractions, varied per reply. Wording changes; facts never do.
+const REPHRASE_SWAPS = [
+  [/\bwe offer\b/i, ['we do', "we've got", 'we can do']],
+  [/\bwe provide\b/i, ['we do', 'we handle', "we've got"]],
+  [/\byou can find us at\b/i, ["we're at", "you'll find us at", "we're over at"]],
+  [/\bplease contact us\b/i, ['just reach out', 'give us a shout', 'just ask']],
+  [/\bdo not hesitate to\b/i, ['feel free to', 'just']],
+  [/\bplease feel free to\b/i, ['feel free to', 'go ahead and']],
+  [/^yes[,.!]? /i, ['yep — ', 'sure — ', 'yes — ']],
+  [/^absolutely[,.!]? /i, ['absolutely — ', 'for sure — ']],
+  [/\bin order to\b/i, ['to']],
+  [/\badditionally[, ]/i, ['also, ', 'plus, ']],
+  [/\bhowever[, ]/i, ['that said, ', 'though ']],
+  [/\bapproximately\b/i, ['about', 'around']],
+  [/\bpurchase\b/i, ['buy', 'get']],
+  [/\bassist(ance)?\b/i, ['help']],
+];
+export function rephrase(r, text) {
+  let out = String(text || '').trim();
+  for (const [re, alts] of REPHRASE_SWAPS) {
+    // apply most swaps, skip some at random so no two replies mutate alike
+    if (re.test(out) && pick(r, [1, 1, 1, 0])) out = out.replace(re, pick(r, alts));
+  }
+  return contract(out);
+}

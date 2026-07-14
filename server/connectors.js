@@ -8,7 +8,7 @@ import { CONNECTORS, connectorStatus } from './catalog.js';
 let db = getDoc('connectors', { byUser: {} });
 const save = () => saveDoc('connectors', db);
 
-const raw = (userId) => (db.byUser[userId] ||= {});
+const raw = (userId) => (db.byUser[businessIdFor(userId)] ||= {});
 
 export function saveConnector(userId, id, fields) {
   if (!CONNECTORS[id]) throw new Error('Unknown connector.');
@@ -47,6 +47,7 @@ export function publicConnectors(userId) {
   return out;
 }
 
+export function migrate(oldId, newId) { if (db.byUser[oldId]) { db.byUser[newId] = db.byUser[oldId]; delete db.byUser[oldId]; save(); } }
 export function removeAllForUser(userId) {
   if (db.byUser[userId]) { delete db.byUser[userId]; save(); }
 }

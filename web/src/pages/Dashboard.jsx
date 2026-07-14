@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
+import LanguagePicker from '../LanguagePicker.jsx';
 
 // The Command Deck — where a business runs its AI agents. Build an agent, give
 // it capabilities, watch it handle customers. Files/website builder are gone;
@@ -36,10 +37,10 @@ export default function Dashboard({ agent: meta, user, gotoView }) {
           {data.agents.length === 0 && <div className="empty">No agents yet. Build your first one — it'll run your front desk.</div>}
           {data.agents.map((a) => (
             <button key={a.id} className={`agent-row ${selId === a.id ? 'active' : ''}`} onClick={() => setSelId(a.id)}>
-              <span className={`agent-dot ${a.status === 'active' ? 'on' : ''}`} />
+              <span className={`led ${a.status === 'active' ? 'green pulse' : 'dim'}`} title={a.status === 'active' ? 'online' : 'offline'} />
               <span className="agent-row-main">
                 <span className="agent-row-name">{a.name}</span>
-                <span className="agent-row-sub">{a.capabilities.length} skills · {a.stats?.handled || 0} handled</span>
+                <span className="agent-row-sub">{a.status === 'active' ? 'Online' : 'Offline'} · {a.capabilities.length} skills · {a.stats?.handled || 0} handled</span>
               </span>
             </button>
           ))}
@@ -69,6 +70,23 @@ export default function Dashboard({ agent: meta, user, gotoView }) {
   );
 }
 
+/* ---------------- building-agent ceremony ---------------- */
+function BuildingAgent({ name }) {
+  const stages = ['Waking up your agent…', 'Teaching it your business…', 'Wiring up its skills…', 'Bringing it online…'];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setI((x) => Math.min(x + 1, stages.length - 1)), 640);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <div className="build-agent">
+      <div className="build-globe"><Mark size={64} spin /></div>
+      <div className="build-name">Building {name || 'your agent'}</div>
+      <div className="build-stage thinking-label">{stages[i]}</div>
+    </div>
+  );
+}
+
 /* ---------------- create agent wizard ---------------- */
 function CreateAgent({ catalog, caps, onClose, onCreated }) {
   const [name, setName] = useState('');
@@ -76,6 +94,7 @@ function CreateAgent({ catalog, caps, onClose, onCreated }) {
   const [languages, setLanguages] = useState('English');
   const [picked, setPicked] = useState(new Set(['webchat', 'faq']));
   const [busy, setBusy] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [arch, setArch] = useState(null); // what kind of business Atlas knows this is
   const capList = Object.values(catalog.capabilities);
 
@@ -92,13 +111,27 @@ function CreateAgent({ catalog, caps, onClose, onCreated }) {
   const toggle = (id) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const create = async () => {
     if (!name.trim()) return toast('Give your agent a name.', 'err');
-    setBusy(true);
+    setBusy(true); setBuilding(true);
     try {
-      const a = await api.createAgent({ name, role, languages, capabilities: [...picked].filter((c) => caps.includes(c)) });
+      // let the build ceremony breathe while the agent is actually created
+      const [a] = await Promise.all([
+        api.createAgent({ name, role, languages, capabilities: [...picked].filter((c) => caps.includes(c)) }),
+        new Promise((r) => setTimeout(r, 2600)),
+      ]);
       onCreated(a);
-    } catch (e) { toast(e.message, 'err'); }
+    } catch (e) { toast(e.message, 'err'); setBuilding(false); }
     finally { setBusy(false); }
   };
+
+  if (building) {
+    return (
+      <div className="modal-backdrop">
+        <div className="modal panel build-modal" onClick={(e) => e.stopPropagation()}>
+          <BuildingAgent name={name} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -107,7 +140,8 @@ function CreateAgent({ catalog, caps, onClose, onCreated }) {
         <div className="modal-body">
           <label className="auth-label">Name<input className="field" autoFocus placeholder="Front Desk" value={name} onChange={(e) => setName(e.target.value)} /></label>
           <label className="auth-label">What should it do &amp; know?<textarea className="field textarea" rows={3} placeholder="Warm, professional host for our cafe. Knows our menu and hours." value={role} onChange={(e) => setRole(e.target.value)} /></label>
-          <label className="auth-label">Languages<input className="field" placeholder="English, Spanish" value={languages} onChange={(e) => setLanguages(e.target.value)} /></label>
+          <div className="cap-pick-label">Languages it speaks</div>
+          <LanguagePicker value={languages} onChange={setLanguages} />
           <div className="cap-pick-label">Capabilities</div>
           {arch && <p className="type-note"><Icon name="brain" size={12} /> Preset for a {arch.name.toLowerCase()} — {arch.bookable ? `bookings on (${arch.bookNoun}s)` : 'walk-in, so no booking pitch'}. Tweak as you like.</p>}
           <div className="cap-pick">

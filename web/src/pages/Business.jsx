@@ -6,6 +6,70 @@ import { grasp } from '../understanding.js';
 import HoursPicker, { composeHours, defaultGroups } from '../HoursPicker.jsx';
 import { formatPhone } from '../format.js';
 import ServiceOptions, { fullServiceOptions } from '../ServiceOptions.jsx';
+import LanguagePicker from '../LanguagePicker.jsx';
+
+// Agent sharing: who's on this business. Owner (transferable) manages seats;
+// free plan allows two people, any paid plan is unlimited.
+function TeamPanel() {
+  const [t, setT] = useState(null);
+  const [joinCode, setJoinCode] = useState('');
+  const [invite, setInvite] = useState('');
+  const load = () => api.team().then(setT).catch(() => {});
+  useEffect(() => { load(); }, []);
+  if (!t) return null;
+  const iAmOwner = t.myRole === 'owner';
+  const full = t.seats != null && t.used >= t.seats;
+
+  const doInvite = () => api.inviteTeam(invite.trim()).then((r) => {
+    setInvite('');
+    navigator.clipboard?.writeText(r.code).catch(() => {});
+    toast(`Invite code ${r.code} copied — share it with your teammate.`, 'ok');
+    load();
+  }).catch((e) => toast(e.message, 'err'));
+  const doJoin = () => api.joinTeam(joinCode.trim()).then(() => { setJoinCode(''); toast('You joined the business.', 'ok'); location.reload(); }).catch((e) => toast(e.message, 'err'));
+  const remove = (id, you) => { if (!you && !confirm('Remove this person from the business?')) return; api.removeTeamMember(id).then(() => { if (you) location.reload(); else load(); }).catch((e) => toast(e.message, 'err')); };
+  const transfer = (id, name) => { if (!confirm(`Transfer ownership to ${name}? You'll become an admin.`)) return; api.transferOwner(id).then(() => { toast('Ownership transferred.', 'ok'); load(); }).catch((e) => toast(e.message, 'err')); };
+
+  return (
+    <div className="panel biz-panel">
+      <div className="panel-title"><Icon name="user" size={14} /> Team &amp; agent sharing
+        <span className="count-chip">{t.used}{t.seats != null ? ` / ${t.seats}` : ''} {t.seats == null ? 'unlimited' : 'seats'}</span>
+      </div>
+      <p className="dim-note">Everyone here shares the same agents, knowledge, and inbox. The owner can hand ownership to anyone on the team.</p>
+      <div className="team-list">
+        {t.members.map((m) => (
+          <div key={m.id} className="team-row">
+            <div className="team-who">
+              <span className="team-name">{m.name}{m.you && <span className="team-you"> · you</span>}</span>
+              <span className="team-email">{m.email}</span>
+            </div>
+            <span className={`team-role ${m.role}`}>{m.role}</span>
+            <div className="team-actions">
+              {iAmOwner && m.role !== 'owner' && <button className="text-link" onClick={() => transfer(m.id, m.name)}>Make owner</button>}
+              {(iAmOwner && m.role !== 'owner') && <button className="mini-btn ghost" title="Remove" onClick={() => remove(m.id, false)}><Icon name="close" size={12} /></button>}
+              {m.you && m.role !== 'owner' && <button className="text-link danger" onClick={() => remove(m.id, true)}>Leave</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {iAmOwner && (
+        <div className="team-invite">
+          {full
+            ? <p className="dim-note">You're at your {t.seats}-seat limit. <b>Upgrade to any paid plan for unlimited team members.</b></p>
+            : <div className="team-invite-row">
+                <input className="field" placeholder="Teammate's email (optional)" value={invite} onChange={(e) => setInvite(e.target.value)} />
+                <button className="gel-btn gel-primary" onClick={doInvite}>Create invite code</button>
+              </div>}
+        </div>
+      )}
+      <div className="team-join">
+        <span className="dim-note">Got an invite code?</span>
+        <input className="field code-field-sm" placeholder="8-digit code" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} />
+        <button className="gel-btn" disabled={!joinCode.trim()} onClick={doJoin}>Join a business</button>
+      </div>
+    </div>
+  );
+}
 
 // What the agents learn: the business profile, contact details, human routing,
 // and the FAQ. A clean form panel, like the integrations deck.
@@ -49,6 +113,8 @@ export default function Business() {
       <div className="page-head">
         <div><h1>Your business</h1><p>Everything here teaches your agents how to represent you — your hours, how to reach you, and what to say.</p></div>
       </div>
+
+      <TeamPanel />
 
       <div className="panel biz-panel">
         <div className="panel-title"><Icon name="brain" size={14} /> Profile</div>
@@ -101,7 +167,9 @@ export default function Business() {
           </div>
         )}
         <div className="biz-grid">
-          <label className="auth-label">Languages<input className="field" {...field('languages')} placeholder="English, Spanish" /></label>
+          <label className="auth-label">Languages
+            <LanguagePicker value={p.languages} onChange={(v) => setP({ ...p, languages: v })} />
+          </label>
           <label className="auth-label">Tone
             <select className="select" value={p.tone || 'friendly'} onChange={(e) => setP({ ...p, tone: e.target.value })}>
               <option value="friendly">Friendly</option><option value="warm">Warm</option><option value="formal">Formal</option>

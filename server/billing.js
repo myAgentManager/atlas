@@ -6,8 +6,17 @@ import crypto from 'node:crypto';
 import { config } from './config.js';
 import { getUser, updateUser, publicUser, audit } from './auth.js';
 import { getPlatform } from './platform.js';
+import { businessIdFor, ownerOf } from './teams.js';
 
 import { CAPABILITIES } from './catalog.js';
+
+// The subscription belongs to the business OWNER — team members share it. Any
+// plan/capability/limit question resolves to the owner's account.
+function ownerUser(user) {
+  if (!user) return user;
+  const ownerId = ownerOf(businessIdFor(user.id));
+  return ownerId === user.id ? user : (getUser(ownerId) || user);
+}
 
 // Keys pasted into Operations → Payments win; env vars remain the fallback,
 // so going live never needs a redeploy.
@@ -24,7 +33,8 @@ const stripeCfg = () => {
 export const billingLive = () => Boolean(stripeCfg().secret);
 export const plans = () => Object.values(config.plans).map((p) => ({ ...p, capabilities: capsForPlan(p) }));
 export function planFor(user) {
-  return config.plans[user?.subscription?.plan || user?.plan || 'free'] || config.plans.free;
+  const o = ownerUser(user);
+  return config.plans[o?.subscription?.plan || o?.plan || 'free'] || config.plans.free;
 }
 
 // The full capability set a plan unlocks: base + anything whose tier the plan includes.
@@ -38,12 +48,17 @@ export function capsForPlan(plan) {
 // Does this account's plan include a given capability? Founders (Atlas Networks
 // staff) get everything, comped — no subscription required.
 export function entitled(user, capability) {
-  if (user?.founder) return true;
+  if (ownerUser(user)?.founder) return true;
   return capsForPlan(planFor(user)).includes(capability);
 }
-// How many agents this account may run. Founders effectively unlimited.
+// How many agents this business may run. Founders effectively unlimited.
 export function agentLimit(user) {
-  return user?.founder ? 999 : planFor(user).agents;
+  return ownerUser(user)?.founder ? 999 : planFor(user).agents;
+}
+// Team seats: any paid plan is unlimited; the free plan allows two people.
+export function seatLimit(user) {
+  if (ownerUser(user)?.founder) return 999;
+  return planFor(user).id === 'free' ? 2 : Infinity;
 }
 // Intro pricing: 60% off the first N months.
 export function introPrice(price) {
@@ -147,16 +162,20 @@ export function handleWebhook(event) {
 
 export function billingState(user) {
   const plan = planFor(user);
-  const founder = Boolean(user.founder);
+  const owner = ownerUser(user);
+  const founder = Boolean(owner?.founder);
+  const seats = seatLimit(user);
   return {
     live: billingLive(),
     plan: plan.id, planName: plan.name,
-    status: user.subscription?.status || 'active',
-    since: user.subscription?.since || user.createdAt,
+    status: owner?.subscription?.status || 'active',
+    since: owner?.subscription?.since || user.createdAt,
     agents: agentLimit(user),
+    seatLimit: seats === Infinity ? null : seats, // null = unlimited
     capabilities: founder ? Object.keys(CAPABILITIES) : capsForPlan(plan),
     intro: config.introDiscount,
     founder,
     comped: founder,
+    sharedByOwner: ownerOf(businessIdFor(user.id)) !== user.id, // this account is on someone else's plan
   };
 }

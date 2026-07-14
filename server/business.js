@@ -10,11 +10,13 @@ import { tokenize } from './atlas/nlu.js';
 import { newVoice, contract, pick, rephrase } from './atlas/voice.js';
 import * as kb from './atlas/kb.js';
 import { archetype, detectArchetype, serviceQuestions } from './atlas/archetypes.js';
+import { businessIdFor } from './teams.js';
 
 let db = getDoc('business', { biz: {} }); // biz[userId] = { profile, faqs, customers, bookings, inbox }
 const save = () => saveDoc('business', db);
 
 function biz(userId) {
+  userId = businessIdFor(userId); // shared businesses resolve to their owner's id
   db.biz[userId] ||= {
     profile: {
       name: '', tagline: '', about: '', hours: '', services: '', tone: 'friendly', languages: 'English',
@@ -31,6 +33,15 @@ function biz(userId) {
   const b = db.biz[userId];
   b.seenEmails ||= [];
   return b;
+}
+
+// Does this business run walk-in (vs. by booking)? Owner's policy wins, else the
+// archetype default. Used by a couple of reflexes before full intent parsing.
+function isWalkinBiz(p) {
+  const svc = p.serviceOptions || {};
+  if (svc.walkins?.enabled !== undefined) return svc.walkins.enabled;
+  if (svc.instore?.enabled !== undefined) return svc.instore.enabled;
+  return !archetype(p.type || p.typeDetected).bookable;
 }
 
 export const getBusiness = (userId) => biz(userId);
@@ -178,6 +189,24 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   }
   if (/^(bye|goodbye|bye bye|see ya|see you|later|take care|have a good (day|night|one))$/.test(bare)) {
     return quick(pick(r, ['Take care! Come see us soon.', 'Bye for now — reach out anytime.', 'Have a good one!']));
+  }
+  // "are you a real person / a bot?" — be honest and warm, never pretend
+  if (/\b(are you (a |an )?(real|human|person|bot|robot|ai|computer|machine)|is this (a )?(bot|robot|real person|automated|ai)|am i (talking to|speaking with) (a )?(bot|robot|human|person|real))\b/.test(bare)) {
+    return quick(pick(r, [
+      `I'm ${p.name ? `${p.name}'s` : 'the'} virtual assistant — happy to help with most things, and I'll grab a real person if you need one.`,
+      `You're chatting with an AI assistant. I can handle a lot myself, and hand you to the team the moment it needs a human.`,
+    ]));
+  }
+  // "how are you" — friendly deflect, then pivot to helping
+  if (/^(how are you|how's it going|how are things|hows it going|how you doing|you good)( today)?( doing)?$/.test(bare)) {
+    return quick(pick(r, ["Doing great, thanks for asking! What can I help you with?", "All good here — what can I do for you today?"]));
+  }
+  // "help / what can you do" — offer, tuned to what the business actually does
+  if (/^(help|i need help|can you help|what can you (do|help with)|what do you do)( me)?( please)?$/.test(bare)) {
+    return quick(pick(r, [
+      `Happy to help! I can answer questions about ${p.name || 'us'}, ${isWalkinBiz(p) ? 'tell you when to come by' : 'get you booked in'}, and pass you to a real person if you need one. What's up?`,
+      `For sure — ask me about hours, ${p.services ? 'what we offer' : 'our services'}, ${isWalkinBiz(p) ? 'visiting' : 'booking'}, anything really. What do you need?`,
+    ]));
   }
 
   // What kind of business is this, and what is the customer actually asking?
@@ -400,3 +429,6 @@ export function bizStats(userId) {
   };
 }
 export function removeAllForUser(userId) { if (db.biz[userId]) { delete db.biz[userId]; save(); } }
+// Move a business's data to a new storage key (used when a solo account forms a
+// team). Literal keys — do NOT resolve through businessIdFor here.
+export function migrate(oldId, newId) { if (db.biz[oldId]) { db.biz[newId] = db.biz[oldId]; delete db.biz[oldId]; save(); } }

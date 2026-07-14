@@ -6,18 +6,20 @@ import { randomUUID } from 'node:crypto';
 import { getDoc, saveDoc } from './db.js';
 import { CAPABILITIES } from './catalog.js';
 import * as biz from './business.js';
+import { businessIdFor } from './teams.js';
 
 let db = getDoc('agents', { agents: [] });
 const save = () => saveDoc('agents', db);
 
-export const listAgents = (userId) => db.agents.filter((a) => a.userId === userId);
-export const getAgent = (userId, id) => db.agents.find((a) => a.id === id && a.userId === userId) || null;
+// Agents belong to the BUSINESS, not the individual — shared across the team.
+export const listAgents = (userId) => { const b = businessIdFor(userId); return db.agents.filter((a) => a.userId === b); };
+export const getAgent = (userId, id) => { const b = businessIdFor(userId); return db.agents.find((a) => a.id === id && a.userId === b) || null; };
 export const countAgents = (userId) => listAgents(userId).length;
 
 export function createAgent(userId, { name, role, capabilities, languages, greeting }) {
   const agent = {
     id: randomUUID().slice(0, 8),
-    userId,
+    userId: businessIdFor(userId),
     name: (name || 'Front Desk').trim().slice(0, 40),
     role: (role || 'Handle customer questions warmly and professionally.').trim().slice(0, 400),
     greeting: (greeting || 'Hi! Thanks for reaching out — how can I help?').trim().slice(0, 200),
@@ -42,7 +44,8 @@ export function updateAgent(userId, id, patch) {
 }
 
 export function deleteAgent(userId, id) {
-  const i = db.agents.findIndex((a) => a.id === id && a.userId === userId);
+  const b = businessIdFor(userId);
+  const i = db.agents.findIndex((a) => a.id === id && a.userId === b);
   if (i === -1) return false;
   db.agents.splice(i, 1);
   save();
@@ -74,6 +77,11 @@ export function handle(userId, agent, text, opts = {}) {
   return { ...draft, agent: agent.name, multilingual: multi };
 }
 
+export function migrate(oldId, newId) {
+  let moved = false;
+  for (const a of db.agents) if (a.userId === oldId) { a.userId = newId; moved = true; }
+  if (moved) save();
+}
 export function removeAllForUser(userId) {
   const before = db.agents.length;
   db.agents = db.agents.filter((a) => a.userId !== userId);

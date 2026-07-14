@@ -7,11 +7,13 @@ import { randomUUID } from 'node:crypto';
 import { getDoc, saveDoc } from '../db.js';
 import { tokenize } from './nlu.js';
 import { splitSentences, keywords } from './knowledge.js';
+import { businessIdFor } from '../teams.js';
 
 let db = getDoc('kb', { users: {} }); // users[uid] = { facts: [], gaps: [] }
 const save = () => saveDoc('kb', db);
 
 function node(userId) {
+  userId = businessIdFor(userId); // shared businesses resolve to their owner's id
   db.users[userId] ||= { facts: [], gaps: [] };
   return db.users[userId];
 }
@@ -181,6 +183,7 @@ export function kbStats(userId) {
   };
 }
 
+export function migrate(oldId, newId) { if (db.users[oldId]) { db.users[newId] = db.users[oldId]; delete db.users[oldId]; save(); } }
 export function removeAllForUser(userId) {
   if (db.users[userId]) { delete db.users[userId]; save(); }
 }

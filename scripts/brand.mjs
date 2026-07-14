@@ -96,9 +96,21 @@ function poster(w, h, themeName, layout) {
     const r = Math.min(w, h) * 0.12;
     const gy = h * 0.16;
     art = globe(cx, gy, r, id) + wordmark(cx, gy + r + h * 0.06, Math.min(w, h) * 0.075, t);
-  } else {
+  } else if (layout === 'clean') {
     const r = Math.min(w, h) * 0.16;
     art = globe(cx, h * 0.34, r, id);
+  } else if (layout === 'corner') {
+    // small branding, bottom-left — leaves the whole canvas free for ad copy
+    const pad = Math.min(w, h) * 0.055;
+    const r = Math.min(w, h) * 0.038;
+    const gx = pad + r, gy = h - pad - r;
+    const size = Math.min(w, h) * 0.05;
+    art = globe(gx, gy, r, id) +
+      `<text x="${gx + r + size * 0.4}" y="${gy + size * 0.36}" text-anchor="start" font-family="${FONT}" font-weight="800" font-size="${size}" letter-spacing="-${(size * 0.02).toFixed(1)}">` +
+      `<tspan fill="${t.my}">my</tspan><tspan fill="${t.agent}">Agent</tspan></text>`;
+  } else {
+    // plain — just the themed background, nothing on top (drop your own text)
+    art = '';
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bg(w, h, t)}${art}</svg>`;
 }
@@ -108,7 +120,7 @@ const formats = [
   { name: 'story', w: 1080, h: 1920 },   // phone / IG story / TikTok
   { name: 'wide', w: 1200, h: 630 },     // OG / Twitter / FB link
 ];
-const layouts = ['center', 'top', 'clean'];
+const layouts = ['center', 'top', 'clean', 'corner', 'plain'];
 
 let n = 0;
 for (const f of formats) for (const theme of ['dark', 'light']) for (const layout of layouts) {

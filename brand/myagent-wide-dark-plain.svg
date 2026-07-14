@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#070b15"/>
+  <rect width="1200" height="630" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="#0d1526"/><stop offset="100%" stop-color="#070b15"/></linearGradient>
+    <radialGradient id="au1" cx="80%" cy="8%" r="60%"><stop offset="0%" stop-color="rgba(52,227,208,0.16)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+    <radialGradient id="au2" cx="12%" cy="30%" r="55%"><stop offset="0%" stop-color="rgba(70,110,255,0.14)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+    <radialGradient id="au3" cx="65%" cy="105%" r="60%"><stop offset="0%" stop-color="rgba(150,84,255,0.12)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#au1)"/>
+  <rect width="1200" height="630" fill="url(#au2)"/>
+  <rect width="1200" height="630" fill="url(#au3)"/></svg>

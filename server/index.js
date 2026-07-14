@@ -16,6 +16,7 @@ import * as billing from './billing.js';
 import * as biz from './business.js';
 import * as agents from './agents.js';
 import * as connectors from './connectors.js';
+import * as teams from './teams.js';
 import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { archetypeList } from './atlas/archetypes.js';
 import * as kb from './atlas/kb.js';
@@ -336,6 +337,7 @@ app.delete('/api/me', auth.requireAuth, async (req, res) => {
   agents.removeAllForUser(req.user.id);
   connectors.removeAllForUser(req.user.id);
   kb.removeAllForUser(req.user.id);
+  teams.removeAllForUser(req.user.id);
   await forUser(req.user.id).removeAll().catch(() => {}); // wipe their workspace: privacy
   auth.deleteUser(req.user.id);
   auth.clearCookie(res, 'ma_sess');
@@ -490,6 +492,77 @@ app.get('/api/overview', auth.requireAuth, (req, res) => {
   const recent = [...inbox].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 6)
     .map((c) => ({ id: c.id, customer: c.customer, subject: c.subject, channel: c.channel, updatedAt: c.updatedAt, agent: agentName[c.agentId] || '—', messages: c.messages.length }));
   res.json({ totals, trend: stats.trend, topAgents, recent, businessName: biz.getBusiness(req.user.id).profile.name });
+});
+
+// ============================================================================
+// Team sharing — multiple people on one business (owner role is transferable)
+// ============================================================================
+// Hydrate a team snapshot with names/emails (never hashes/secrets).
+function hydrateTeam(bizId, meId) {
+  const snap = teams.snapshot(bizId);
+  const who = (id) => { const u = auth.getUser(id); return u ? { id, name: u.name, email: u.email } : { id, name: 'Removed account', email: '' }; };
+  return {
+    ownerId: snap.ownerId,
+    myRole: teams.roleOf(meId),
+    members: snap.members.map((m) => ({ ...who(m.id), role: m.role, you: m.id === meId })),
+    invites: snap.invites.map((i) => ({ email: i.email, role: i.role, code: i.code })),
+  };
+}
+app.get('/api/team', auth.requireAuth, (req, res) => {
+  const bizId = teams.businessIdFor(req.user.id);
+  const seats = billing.seatLimit(req.user);
+  res.json({ ...hydrateTeam(bizId, req.user.id), seats: seats === Infinity ? null : seats, used: teams.seatCount(bizId) });
+});
+// Owner/admin invites a teammate → returns a join code they share.
+app.post('/api/team/invite', auth.requireAuth, (req, res) => {
+  if (!['owner', 'admin'].includes(teams.roleOf(req.user.id))) return bad(res, 403, 'Only the owner can invite people.');
+  let bizId = teams.businessIdFor(req.user.id);
+  // First time this solo account shares: migrate its data onto a stable business
+  // id so a future departing owner can't collide back into it.
+  if (!teams.exists(bizId)) {
+    const newId = teams.newBusinessId();
+    biz.migrate(req.user.id, newId);
+    agents.migrate(req.user.id, newId);
+    kb.migrate(req.user.id, newId);
+    connectors.migrate(req.user.id, newId);
+    teams.formTeam(newId, req.user.id);
+    bizId = newId;
+  }
+  const limit = billing.seatLimit(req.user);
+  if (teams.seatCount(bizId) >= limit) return bad(res, 402, `Your plan includes ${limit} seats. Upgrade for unlimited team members.`);
+  const code = teams.createInvite(bizId, teams.ownerOf(bizId), req.body?.email, req.body?.role);
+  auth.audit('team', `${req.user.email} created a team invite`);
+  res.json({ code });
+});
+// Redeem a join code → become a member of that business. Rate-limited so an
+// 8-digit invite code can't be brute-forced to infiltrate a business.
+app.post('/api/team/join', auth.requireAuth, (req, res) => {
+  if (!auth.rateCheck(`join:${req.user.id}`, 8, 15 * 60_000)) return bad(res, 429, 'Too many attempts — try again later.');
+  const r = teams.redeemInvite(req.user.id, req.body?.code);
+  if (r.error) auth.rateFail(`join:${req.user.id}`, 8, 15 * 60_000);
+  if (r.error) return bad(res, 400, r.error);
+  if (billing.seatLimit(auth.getUser(teams.ownerOf(r.bizId))) < teams.seatCount(r.bizId)) {
+    teams.leave(req.user.id); // seat gate — undo the join
+    return bad(res, 402, 'That business is at its seat limit. Ask the owner to upgrade.');
+  }
+  auth.audit('team', `${req.user.email} joined a shared business`);
+  res.json({ ok: true });
+});
+app.delete('/api/team/member/:id', auth.requireAuth, (req, res) => {
+  const bizId = teams.businessIdFor(req.user.id);
+  const self = req.params.id === req.user.id;
+  if (!self && !['owner', 'admin'].includes(teams.roleOf(req.user.id))) return bad(res, 403, 'Only the owner can remove people.');
+  const ok = self ? teams.leave(req.user.id) : teams.removeMember(bizId, req.params.id);
+  auth.audit('team', `${req.user.email} ${self ? 'left the team' : 'removed a teammate'}`);
+  res.json({ ok });
+});
+app.post('/api/team/transfer', auth.requireAuth, (req, res) => {
+  const bizId = teams.businessIdFor(req.user.id);
+  if (!teams.isOwner(req.user.id)) return bad(res, 403, 'Only the owner can transfer ownership.');
+  const r = teams.transferOwner(bizId, req.body?.toId);
+  if (r.error) return bad(res, 400, r.error);
+  auth.audit('team', `${req.user.email} transferred ownership`);
+  res.json({ ok: true });
 });
 
 // ============================================================================

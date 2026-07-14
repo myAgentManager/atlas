@@ -21,7 +21,7 @@ function mdToHtml(md) {
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, txt, url) => /^(https?:|mailto:)/i.test(url.trim()) ? `<a href="${url}" target="_blank" rel="noreferrer">${txt}</a>` : txt)
       .replace(/&lt;(https?:\/\/[^\s&]+)&gt;/g, '<a href="$1" target="_blank" rel="noreferrer">$1</a>');
   for (const raw of lines) {
     if (raw.trim().startsWith('```')) {

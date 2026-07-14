@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { Icon } from '../icons.jsx';
+import { Icon, Mark } from '../icons.jsx';
 import { toast } from '../toast.jsx';
 
 // The integration tools deck. A business plugs in its own services (IMAP, SMTP,
@@ -39,12 +39,31 @@ export default function Integrations() {
   // inside the PBX card once it's connected. No webhook archaeology required.
   function PbxSetup() {
     const [info, setInfo] = useState(null);
+    const [testing, setTesting] = useState(false);
+    const [result, setResult] = useState(null);
     useEffect(() => { api.voipSetup().then(setInfo).catch(() => {}); }, []);
-    if (!info) return null;
     const copy = (t, label) => navigator.clipboard.writeText(t).then(() => toast(`${label} copied.`, 'ok'));
+    const test = async () => {
+      setTesting(true); setResult(null);
+      try { setResult(await api.testPbx()); }
+      catch (e) { setResult({ ok: false, detail: e.message }); }
+      finally { setTesting(false); }
+    };
     return (
       <div className="pbx-setup">
-        <div className="pbx-setup-title"><Icon name="check" size={13} /> Your extension is ready — point your phone system at it:</div>
+        <div className="pbx-row">
+          <b>Connection test</b>
+          <span>Register with your FreePBX/Asterisk to check the port-forwarding and credentials are right.</span>
+          <div className="pbx-test-row">
+            <button className="gel-btn" disabled={testing} onClick={test}>
+              {testing ? <><Mark size={15} spin /> Registering…</> : <><Icon name="plug" size={14} /> Test SIP connection</>}
+            </button>
+            {result && <span className={`pbx-test-result ${result.ok ? 'ok' : 'err'}`}><Icon name={result.ok ? 'check' : 'close'} size={13} /> {result.detail}</span>}
+          </div>
+          <p className="dim-note">This proves myAgent can reach and authenticate to your PBX. Answering the live call audio still runs through the IVR bridge below (your PBX handles speech, myAgent handles the conversation).</p>
+        </div>
+        {!info ? null : <>
+        <div className="pbx-setup-title"><Icon name="check" size={13} /> Point your phone system at the agent:</div>
         <div className="pbx-row">
           <b>Twilio</b>
           <span>Set your number's Voice webhook (HTTP POST) to:</span>
@@ -56,6 +75,7 @@ export default function Integrations() {
           <code className="pbx-code" onClick={() => copy(info.curl, 'Example request')}>{info.curl}</code>
         </div>
         <p className="dim-note">Click a snippet to copy it. First request of a call (no <code>text</code>) returns the pickup greeting; replies include <code>hangup</code> when the caller says goodbye.</p>
+        </>}
       </div>
     );
   }

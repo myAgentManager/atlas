@@ -1687,3 +1687,10 @@ body {
   gap: 14px; text-align: center; padding: 24px; animation: pageIn 0.4s ease both; }
 .lock-screen h1 { font-size: 28px; letter-spacing: -0.6px; }
 .lock-screen p { color: var(--ink-dim); font-size: 15px; max-width: 440px; line-height: 1.6; }
+
+/* v20 — SIP test button */
+.pbx-test-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0; }
+.pbx-test-result { display: inline-flex; align-items: flex-start; gap: 6px; font-size: 12.5px; font-weight: 600; line-height: 1.45; }
+.pbx-test-result.ok { color: var(--green); }
+.pbx-test-result.err { color: var(--red); }
+.pbx-test-result .icon { flex: none; margin-top: 2px; }

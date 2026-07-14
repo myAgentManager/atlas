@@ -106,12 +106,13 @@ export const CONNECTORS = {
   },
   pbx: {
     id: 'pbx', name: 'PBX / VoIP extension', icon: 'plug',
-    blurb: "Give myAgent an extension on your phone system. Point your PBX's IVR at the webhook and the agent speaks to callers.",
+    blurb: 'Register myAgent as an extension on your FreePBX/Asterisk. Test the connection here; calls are answered through the IVR bridge below.',
     fields: [
-      { key: 'host', label: 'SIP registrar / PBX host', placeholder: 'pbx.yourbusiness.com' },
+      { key: 'host', label: 'SIP host (public IP or domain you port-forward)', placeholder: 'pbx.yourbusiness.com' },
+      { key: 'port', label: 'SIP port (UDP)', placeholder: '5060' },
       { key: 'ext', label: 'Extension', placeholder: '200' },
-      { key: 'user', label: 'Auth user', placeholder: 'myagent' },
-      { key: 'secret', label: 'SIP secret', secret: true },
+      { key: 'user', label: 'Auth user (usually same as extension)', placeholder: '200' },
+      { key: 'secret', label: 'Extension secret', secret: true },
       { key: 'token', label: 'IVR token (leave blank — Atlas generates one)', secret: true, placeholder: 'auto-generated on save' },
     ],
     required: ['host', 'ext'],

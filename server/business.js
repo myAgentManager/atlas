@@ -237,8 +237,9 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
   let faqStems = null;
   if (faq?.a && !restates(faq.a)) {
     const ans = rephrase(r, faq.a);
-    // no "so, Yes," pile-ups — skip the opener when the answer already has one
-    const pre = /^(yes|yep|sure|absolutely|for sure|of course)/i.test(ans) ? '' : pick(r, ['', 'good question — ', 'so, ']);
+    // a warm lead-in only when we're NOT already greeting, and never when the
+    // answer opens with one itself ("yes…") — no "Hey! Good question — yes…" pile-ups
+    const pre = (!greeted || /^(yes|yep|sure|absolutely|for sure|of course|good)/i.test(ans)) ? '' : pick(r, ['', '', 'good question — ']);
     parts.push(pre + ans);
     intents.add('faq');
     faqStems = new Set(tokenize(faq.q + ' ' + faq.a).map(stem));
@@ -311,26 +312,33 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     ]));
   }
 
-  // -- assembly: answer first, greeting only on first contact -----------------
-  const opener = greeted ? '' : pick(r, ['Hi! ', 'Hey! ', 'Hey there — ', '']);
-  let body = '';
+  // -- assembly: answer first, in flowing sentences, greet only on first contact
+  // Each answer part becomes its own sentence, stitched with varied lead-ins so
+  // it reads like a person talking, not clauses bolted together. Words that must
+  // keep their case (I, proper nouns, acronyms) are left alone.
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  parts.forEach((part, i) => {
-    if (i === 0) { body = cap(part); return; }
-    // vary how the next thought connects — people don't just stack sentences
-    const join = pick(r, ['', '', 'also — ', 'and ', 'oh, and ']);
-    const tail = join && !/^I\b/.test(part) ? part.charAt(0).toLowerCase() + part.slice(1) : part;
-    body += (/[.!?]$/.test(body) ? ' ' : '. ') + cap(join ? join + tail : part);
-  });
-  if (!/[.!?]$/.test(body)) body += '.';
+  const keepsCase = (s) => /^(I\b|I'|[A-Z]{2,}|[A-Z][a-z]+ )/.test(s);
+  const lower = (s) => (keepsCase(s) ? s : s.charAt(0).toLowerCase() + s.slice(1));
+  const term = (s) => { const t = s.trim().replace(/[\s—,]+$/, ''); return /[.!?]$/.test(t) ? t : t + '.'; };
+  const LEADS = ['', '', '', '', 'Also, ', 'Plus, ', 'And ', 'Oh, and ']; // mostly clean new sentences
 
-  // signature only on email (or a first chat touch from a named business)
+  const clauses = parts.map((x) => String(x).trim().replace(/^[—,.\s]+/, '')).filter(Boolean);
+  const sentences = [];
+  clauses.forEach((part, i) => {
+    if (i === 0) { sentences.push(cap(part)); return; }
+    const lead = pick(r, LEADS);
+    sentences.push(lead ? lead + lower(part) : cap(part));
+  });
+  let body = sentences.map(term).join(' ').replace(/\s{2,}/g, ' ');
+
+  // signature only on email
   const contactLine = [p.phone && `Call: ${p.phone}`, p.website].filter(Boolean).join(' · ');
   const sign = channel === 'email'
     ? `\n\n— ${p.name || 'the team'}${p.hours ? `\nHours: ${p.hours}` : ''}${contactLine ? `\n${contactLine}` : ''}`
     : '';
 
-  const out = contract(opener + body + sign);
+  const greetWord = greeted ? '' : pick(r, ['Hi', 'Hey', 'Hey there', 'Hey', '']);
+  const out = contract((greetWord ? `${greetWord}! ` : '') + body + sign);
   const intent = intents.has('booking') ? 'booking' : intents.has('sales') ? 'sales' : intents.has('faq') ? 'faq' : 'general';
   // pace like a person: read time + typing time, capped
   const thinkMs = Math.min(3200, Math.max(700, 350 + text.length * 9 + out.length * 4));

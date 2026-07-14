@@ -73,6 +73,7 @@ export const api = {
   clearConnector: (id) => send(`/api/connectors/${id}`, 'DELETE'),
   archetypes: () => get('/api/archetypes'),
   voipSetup: () => get('/api/voip/setup'),
+  testPbx: () => post('/api/connectors/pbx/test'),
   supportCode: () => post('/api/me/support-code'),
   agents: () => get('/api/agents'),
   createAgent: (body) => post('/api/agents', body),

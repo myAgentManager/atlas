@@ -20,6 +20,7 @@ import { CONNECTORS, CAPABILITIES } from './catalog.js';
 import { archetypeList } from './atlas/archetypes.js';
 import * as kb from './atlas/kb.js';
 import * as voip from './voip.js';
+import * as sip from './sip.js';
 import { digestTick } from './digest.js';
 import { fetchRecent } from './imap.js';
 import { sendVia } from './email.js';
@@ -441,6 +442,18 @@ app.put('/api/connectors/:id', auth.requireAuth, (req, res) => {
   } catch (e) { bad(res, 400, e.message); }
 });
 app.delete('/api/connectors/:id', auth.requireAuth, (req, res) => { connectors.clearConnector(req.user.id, req.params.id); res.json({ ok: true }); });
+
+// Test the SIP connection to a business's FreePBX/Asterisk: a real REGISTER
+// handshake that proves the port-forwarding + credentials work.
+app.post('/api/connectors/pbx/test', auth.requireAuth, async (req, res) => {
+  const cfg = connectors.getConnectorConfig(req.user.id, 'pbx');
+  if (!cfg?.host || !cfg?.ext) return bad(res, 400, 'Save the PBX host and extension first.');
+  try {
+    const r = await sip.testRegister(cfg);
+    auth.audit('voip', `SIP test for ${req.user.email}: ${r.status} ${r.ok ? 'ok' : 'fail'}`);
+    res.json(r);
+  } catch (e) { bad(res, 502, e.message); }
+});
 
 // ============================================================================
 // Dashboard — the at-a-glance overview (tiles, trend, top agents, recent)

@@ -35,12 +35,33 @@ export default function Integrations() {
     toast('Disconnected.');
   };
 
+  // One-line SIP credential paste → fills the fields (sip:user:secret@host:port).
+  function SipLinePaste({ onParsed }) {
+    const [line, setLine] = useState('');
+    const parse = () => {
+      if (!line.trim()) return;
+      api.parseSipLine(line.trim()).then((v) => { onParsed(v); setLine(''); toast('Filled from your SIP line.', 'ok'); }).catch((e) => toast(e.message, 'err'));
+    };
+    return (
+      <label className="auth-label">Paste a SIP line <span className="dim-note-inline">(optional — fills the fields for you)</span>
+        <div className="sip-line-row">
+          <input className="field" placeholder="sip:200:secret@pbx.yourbiz.com:5060" value={line}
+            onChange={(e) => setLine(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && parse()} />
+          <button className="gel-btn" type="button" onClick={parse}>Fill</button>
+        </div>
+      </label>
+    );
+  }
+
   // Copy-paste phone-system setup, with this account's token baked in — shown
   // inside the PBX card once it's connected. No webhook archaeology required.
   function PbxSetup() {
     const [info, setInfo] = useState(null);
     const [testing, setTesting] = useState(false);
     const [result, setResult] = useState(null);
+    const [toExt, setToExt] = useState('');
+    const [calling, setCalling] = useState(false);
+    const [callResult, setCallResult] = useState(null);
     useEffect(() => { api.voipSetup().then(setInfo).catch(() => {}); }, []);
     const copy = (t, label) => navigator.clipboard.writeText(t).then(() => toast(`${label} copied.`, 'ok'));
     const test = async () => {
@@ -48,6 +69,13 @@ export default function Integrations() {
       try { setResult(await api.testPbx()); }
       catch (e) { setResult({ ok: false, detail: e.message }); }
       finally { setTesting(false); }
+    };
+    const testCall = async () => {
+      if (!toExt.trim()) return;
+      setCalling(true); setCallResult(null);
+      try { setCallResult(await api.testPbxCall(toExt.trim())); }
+      catch (e) { setCallResult({ ok: false, detail: e.message }); }
+      finally { setCalling(false); }
     };
     return (
       <div className="pbx-setup">
@@ -60,7 +88,18 @@ export default function Integrations() {
             </button>
             {result && <span className={`pbx-test-result ${result.ok ? 'ok' : 'err'}`}><Icon name={result.ok ? 'check' : 'close'} size={13} /> {result.detail}</span>}
           </div>
-          <p className="dim-note">This proves myAgent can reach and authenticate to your PBX. Answering the live call audio still runs through the IVR bridge below (your PBX handles speech, myAgent handles the conversation).</p>
+        </div>
+        <div className="pbx-row">
+          <b>Test call to an extension</b>
+          <span>Ring another extension from Atlas's line to prove it can place calls (it cancels immediately — no one has to answer).</span>
+          <div className="pbx-test-row">
+            <input className="field code-field-sm" placeholder="e.g. 100" value={toExt} onChange={(e) => setToExt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && testCall()} />
+            <button className="gel-btn" disabled={calling || !toExt.trim()} onClick={testCall}>
+              {calling ? <><Mark size={15} spin /> Calling…</> : <><Icon name="chat" size={14} /> Test call</>}
+            </button>
+            {callResult && <span className={`pbx-test-result ${callResult.ok ? 'ok' : 'err'}`}><Icon name={callResult.ok ? 'check' : 'close'} size={13} /> {callResult.detail}</span>}
+          </div>
+          <p className="dim-note">This proves Atlas can reach and authenticate to your PBX and place calls. Answering live call audio still runs through the IVR bridge below (your PBX handles speech, Atlas handles the conversation).</p>
         </div>
         {!info ? null : <>
         <div className="pbx-setup-title"><Icon name="check" size={13} /> Point your phone system at the agent:</div>
@@ -112,6 +151,7 @@ export default function Integrations() {
               </div>
               {expanded && (
                 <div className="conn-form" onClick={(e) => e.stopPropagation()}>
+                  {c.id === 'pbx' && <SipLinePaste onParsed={(vals) => setDraft({ ...draft, ...vals })} />}
                   {c.fields.map((f) => (
                     <label key={f.key} className="auth-label">{f.label}
                       <input className="field" type={f.secret ? 'password' : 'text'} placeholder={f.placeholder || ''}

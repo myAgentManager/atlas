@@ -89,7 +89,7 @@ app.use('/api', (req, res, next) => {
   const lock = getPlatform().locked || {};
   if (!lock.enabled || req.user?.founder) return next();
   if (req.path.startsWith('/auth/') || req.path === '/agent' || req.path === '/voip/ivr') return next();
-  res.status(423).json({ locked: true, error: lock.message || 'myAgent is temporarily unavailable — back soon.' });
+  res.status(423).json({ locked: true, error: lock.message || 'Atlas is temporarily unavailable — back soon.' });
 });
 
 const bad = (res, code, error) => res.status(code).json({ error });
@@ -461,13 +461,38 @@ app.delete('/api/connectors/:id', auth.requireAuth, (req, res) => { connectors.c
 // Test the SIP connection to a business's FreePBX/Asterisk: a real REGISTER
 // handshake that proves the port-forwarding + credentials work.
 app.post('/api/connectors/pbx/test', auth.requireAuth, async (req, res) => {
+  if (!auth.rateCheck(`sip:${req.user.id}`, 12, 5 * 60_000)) return bad(res, 429, 'Too many SIP tests — wait a few minutes.');
   const cfg = connectors.getConnectorConfig(req.user.id, 'pbx');
   if (!cfg?.host || !cfg?.ext) return bad(res, 400, 'Save the PBX host and extension first.');
+  const pub = await sip.resolvePublic(cfg.host);
+  if (!pub.ok) return bad(res, 400, pub.reason);
   try {
     const r = await sip.testRegister(cfg);
     auth.audit('voip', `SIP test for ${req.user.email}: ${r.status} ${r.ok ? 'ok' : 'fail'}`);
     res.json(r);
   } catch (e) { bad(res, 502, e.message); }
+});
+// Place a real test call to another extension to prove the line can reach it.
+app.post('/api/connectors/pbx/testcall', auth.requireAuth, async (req, res) => {
+  if (!auth.rateCheck(`sipcall:${req.user.id}`, 10, 5 * 60_000)) return bad(res, 429, 'Too many test calls — wait a few minutes.');
+  const cfg = connectors.getConnectorConfig(req.user.id, 'pbx');
+  if (!cfg?.host || !cfg?.ext) return bad(res, 400, 'Save your PBX host and extension first.');
+  const toExt = String(req.body?.toExt || '').trim();
+  if (!toExt) return bad(res, 400, 'Enter the extension to call.');
+  if (!/^[0-9*#+]{1,12}$/.test(toExt)) return bad(res, 400, 'That doesn\'t look like an extension.');
+  const pub = await sip.resolvePublic(cfg.host);
+  if (!pub.ok) return bad(res, 400, pub.reason);
+  try {
+    const r = await sip.placeTestCall({ ...cfg, toExt });
+    auth.audit('voip', `SIP test-call ${req.user.email} → ext ${toExt}: ${r.status} ${r.ok ? 'ok' : 'fail'}`);
+    res.json(r);
+  } catch (e) { bad(res, 502, e.message); }
+});
+// Parse a one-line SIP credential string into connector fields (client fills the form).
+app.post('/api/connectors/pbx/parse', auth.requireAuth, (req, res) => {
+  const parsed = sip.parseSipLine(req.body?.line);
+  if (!parsed) return bad(res, 400, 'Couldn\'t read that — use sip:user:secret@host:port');
+  res.json(parsed);
 });
 
 // ============================================================================
@@ -1138,7 +1163,7 @@ setInterval(() => { if (!getPlatform().locked?.enabled) digestTick().catch(() =>
 
 app.listen(config.port, () => {
   const e = engineInfo();
-  console.log(`\n  ${config.agentName} online — myAgent on http://localhost:${config.port}`);
+  console.log(`\n  ${config.agentName} online — Atlas on http://localhost:${config.port}`);
   console.log(`  engine: ${e.engine} v${e.version} · ${e.skills} skills · ${e.intents} intents · self-contained`);
   console.log(`  store:  ${dbMode}${adminApp ? ` · operations mounted at /atlas-operations` : ''}`);
   console.log(`  sms:    ${smsReady() ? 'Twilio ready' : 'off'}`);

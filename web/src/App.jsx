@@ -32,7 +32,7 @@ export default function App() {
 
   // platform service lock — any 423 from the API flips the lock screen on
   useEffect(() => {
-    const onLock = (e) => setLockMsg(e.detail || 'myAgent is temporarily unavailable — back soon.');
+    const onLock = (e) => setLockMsg(e.detail || 'Atlas is temporarily unavailable — back soon.');
     window.addEventListener('atlas-locked', onLock);
     return () => window.removeEventListener('atlas-locked', onLock);
   }, []);
@@ -94,7 +94,7 @@ export default function App() {
     return (
       <div className="lock-screen">
         <Mark size={56} />
-        <h1>myAgent is locked</h1>
+        <h1>Atlas is locked</h1>
         <p>{lockMsg}</p>
       </div>
     );

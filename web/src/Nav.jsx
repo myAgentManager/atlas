@@ -22,7 +22,7 @@ export default function Nav({ view, setView, user, connected, onSignOut }) {
     <header className="appnav panel">
       <button className="brand-btn" onClick={() => setView('home')} title="Home">
         <Mark size={24} />
-        <span className="wordmark sm"><span className="wordmark-my">my</span><span className="wordmark-agent">Agent</span></span>
+        <span className="wordmark sm"><span className="wordmark-agent">Atlas</span></span>
       </button>
       <nav className="tabs">
         {tabs.map((t, i) => t === null

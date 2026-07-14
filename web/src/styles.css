@@ -1740,3 +1740,7 @@ body {
 .build-globe svg { filter: drop-shadow(0 0 18px rgba(23,201,182,0.4)); }
 .build-name { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; margin-top: 6px; }
 .build-stage { font-size: 13.5px; min-height: 20px; }
+
+/* v23 — SIP line paste + test-call row */
+.sip-line-row { display: flex; gap: 8px; }
+.sip-line-row .field { flex: 1; }

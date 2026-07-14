@@ -83,7 +83,7 @@ export default function Welcome({ agent, user, onDone, onGo }) {
 
         {step === 0 && (
           <div className="wizard-body">
-            <h1>Welcome to myAgent</h1>
+            <h1>Welcome to Atlas</h1>
             <p className="wizard-sub">Let's get your business onto the Atlas Network. First — what's it called?</p>
             <input className="field wizard-input" autoFocus placeholder="e.g. Luna Beans Cafe" value={bizName}
               onChange={(e) => setBizName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveName()} />
@@ -271,7 +271,7 @@ function SecurityStep({ onBack, onDone }) {
 
 // The launch ceremony: ~15s of real setup narrated over a progress bar while
 // the globe spins, then the globe sweeps to center and grows, then
-// "Welcome to myAgent" fades in with a Continue button.
+// "Welcome to Atlas" fades in with a Continue button.
 function Finale({ bizName, onContinue }) {
   const [pct, setPct] = useState(0);
   const [msg, setMsg] = useState('Waking your agent…');
@@ -315,7 +315,7 @@ function Finale({ bizName, onContinue }) {
       )}
       {stage === 'welcome' && (
         <div className="finale-welcome">
-          <h1>Welcome to myAgent</h1>
+          <h1>Welcome to Atlas</h1>
           <button className="gel-btn gel-primary big" onClick={onContinue}>Continue <Icon name="arrow" size={16} /></button>
         </div>
       )}

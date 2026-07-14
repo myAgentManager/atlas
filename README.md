@@ -1,4 +1,4 @@
-# myAgent
+# Atlas
 
 A cloud AI platform with its own mind. Every account gets a private agent
 workspace: assign **ATLAS** any task in plain English and it **plans out loud,
@@ -42,7 +42,7 @@ Endpoints: `GET /api/v1/me`, `GET|POST /api/v1/tasks`, `GET /api/v1/tasks/:id`,
 
 ## Deploy to the cloud
 
-myAgent is built to run as a hosted platform: you run it once in the cloud,
+Atlas is built to run as a hosted platform: you run it once in the cloud,
 users sign up and get their own private accounts, files, and agent.
 
 **Stack: [Northflank](https://northflank.com) (Docker service) + [Neon](https://neon.tech) (Postgres).**

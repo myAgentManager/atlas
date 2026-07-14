@@ -80,7 +80,7 @@ export function setPlatform(patch = {}) {
 // What the public /api/agent endpoint may reveal (no secrets).
 export function publicPlatform() {
   return {
-    locked: state.locked.enabled ? { enabled: true, message: state.locked.message || 'myAgent is temporarily unavailable — back soon.' } : { enabled: false },
+    locked: state.locked.enabled ? { enabled: true, message: state.locked.message || 'Atlas is temporarily unavailable — back soon.' } : { enabled: false },
     registrationOpen: state.registrationOpen,
     providers: {
       google: Boolean(state.google.enabled && state.google.clientId),

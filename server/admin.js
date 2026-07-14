@@ -333,7 +333,7 @@ const DASH = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 <div class="panel"><h2 style="color:var(--red)">${LOCK_SVG} Danger zone</h2>
 <div class="pform"><div class="prov">
   <div class="prov-head"><b>Service lock</b><label class="row"><input type="checkbox" id="lk_on"> locked</label></div>
-  <div class="hint">Pauses myAgent for every business: customers and owners see your message, agents stop answering email and calls. Staff accounts keep working.</div>
+  <div class="hint">Pauses Atlas for every business: customers and owners see your message, agents stop answering email and calls. Staff accounts keep working.</div>
   <label>Lock message <input id="lk_msg" placeholder="Down for maintenance — back within the hour."></label>
   <div style="text-align:right"><span id="lk_flash" style="color:var(--green);font-size:13px;margin-right:12px"></span>
   <button class="btn warn" onclick="saveLock()">Save lock</button></div>

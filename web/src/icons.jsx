@@ -87,21 +87,26 @@ export function Mark({ size = 28, spin = false }) {
       <circle cx="32" cy="32" r="28" fill={`url(#sea${uid})`} />
 
       <g clipPath={`url(#disc${uid})`}>
-        {/* continents (spinnable as one landmass under the static gloss) */}
-        <g className="mark-land">
-          {/* dark offset copy underneath fakes a beveled emboss */}
-          <g fill="#0a2a55" transform="translate(0.9 1.2)" opacity="0.85">
-            <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
-            <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" />
-            <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
-            <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" />
-          </g>
-          <g fill="#f7fafd">
-            <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z" />
-            <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z" opacity=".97" />
-            <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z" />
-            <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z" opacity=".95" />
-          </g>
+        {/* wireframe grid — reads as a globe and stays crisp at any size */}
+        <g stroke="#bcdcff" strokeOpacity="0.14" strokeWidth="0.7" fill="none">
+          <ellipse cx="32" cy="32" rx="28" ry="5.6" />
+          <ellipse cx="32" cy="20.5" rx="25.4" ry="4.6" />
+          <ellipse cx="32" cy="11" rx="18.6" ry="3" />
+          <ellipse cx="32" cy="43.5" rx="25.4" ry="4.6" />
+          <ellipse cx="32" cy="53" rx="18.6" ry="3" />
+          <ellipse cx="32" cy="32" rx="9.6" ry="28" />
+          <ellipse cx="32" cy="32" rx="19" ry="28" />
+          <line x1="32" y1="4" x2="32" y2="60" />
+        </g>
+
+        {/* continents — cleaner, smoother landmasses (spin under the static gloss) */}
+        <g className="mark-land" fill="#f4f8fd">
+          {/* left (Americas) */}
+          <path d="M21.5 13.5c-3.2.8-5 4-4.4 7.4.5 2.6 2.7 3.6 2.9 6.2.2 3.4-2.4 5.6-1.5 9 .8 3.1 3.6 5.2 5.8 4.3 2.4-1 2.3-4.4 1.4-7-.9-2.5-2.7-3.6-2.4-6.3.3-2.7 2.9-4 3.4-7 .5-3.3-1.6-6.5-5.2-6.6Z" opacity=".96" />
+          {/* centre (Africa / Eurasia) */}
+          <path d="M35 16.5c5-1.6 11 .2 13.4 4.3 1.6 2.7-.2 5.6-2.6 7.2-2.9 2-6.7 1.6-8.6 4.6-1.8 2.8.2 6.6-2.6 8.6-2.7 1.9-6.4-.1-7.4-3.2-1.2-3.7 1.4-6.8 1.6-10.6.2-4.5 1.6-9.2 6.2-10.9Z" />
+          {/* small south-east */}
+          <path d="M45.5 40c3-.4 6 2 5.6 5-.4 2.8-3.6 4-6 2.6-2.3-1.4-2.6-4.8-1.3-6.6.5-.7 1-1 1.7-1Z" opacity=".92" />
         </g>
 
         {/* sphere shading + bottom bounce light */}
@@ -110,11 +115,11 @@ export function Mark({ size = 28, spin = false }) {
 
         {/* glass reflection: upper window with a curved belly */}
         <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z"
-          fill={`url(#gloss${uid})`} opacity="0.8" />
-        <ellipse className="mark-glint" cx="22" cy="12.5" rx="7.5" ry="4" fill="#ffffff" opacity="0.9" />
+          fill={`url(#gloss${uid})`} opacity="0.72" />
+        <ellipse className="mark-glint" cx="22" cy="12.5" rx="7.5" ry="3.6" fill="#ffffff" opacity="0.85" />
       </g>
 
-      <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" strokeOpacity="0.8" strokeWidth="1" />
+      <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" strokeOpacity="0.85" strokeWidth="1" />
     </svg>
   );
 }

@@ -132,7 +132,7 @@ export function forUser(userId) {
     async fetchPage(url) {
       const target = assertPublicUrl(url);
       const res = await fetch(target, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (myAgent ATLAS)' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (Atlas)' },
         signal: AbortSignal.timeout(15_000),
       });
       const text = stripHtml(await res.text());
@@ -142,7 +142,7 @@ export function forUser(userId) {
     async webSearch(query) {
       if (!String(query || '').trim()) return [];
       const res = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), {
-        headers: { 'User-Agent': 'Mozilla/5.0 (myAgent ATLAS)' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (Atlas)' },
         signal: AbortSignal.timeout(15_000),
       });
       const html = await res.text();

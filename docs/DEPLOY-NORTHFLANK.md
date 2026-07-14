@@ -1,15 +1,34 @@
-# Deploying myAgent on Northflank
+# Deploying Atlas on Northflank
 
-myAgent ships as a single Docker image (see [`Dockerfile`](../Dockerfile)):
+Atlas ships as a single Docker image (see [`Dockerfile`](../Dockerfile)):
 the Node server, the built React UI, and the Operations console all run in one
-container on `$PORT`. Persistent state lives in Postgres via `DATABASE_URL`
-(Neon) — the container filesystem is disposable, so redeploys lose nothing.
+container on `$PORT`.
 
-## 1. Database (Neon — stays exactly where it is)
+> ## ⚠️ READ THIS FIRST — or you WILL lose all your data
+>
+> Northflank's container filesystem is **ephemeral**: it is wiped on every
+> deploy and restart. Atlas only survives that if its data lives in an external
+> database. **You MUST set `DATABASE_URL`** to a Postgres (Neon) connection
+> string. Without it, Atlas falls back to JSON files on the disposable disk and
+> **every account, setting, and business is erased on your next deploy.**
+>
+> If you've been losing data after updates, this is why: `DATABASE_URL` isn't
+> set (or is wrong). Fix it, then set `REQUIRE_DB=1` so Atlas refuses to boot
+> without a database and can never silently run ephemeral again.
+>
+> Verify after deploy: open `/healthz` — it must say `"db":"postgres"`. If it
+> says `"db":"files"`, your data is NOT being saved.
 
-Nothing to migrate: the database is external. Use your existing Neon project's
-connection string (`postgres://…?sslmode=require`). If starting fresh, create
-a free Neon project and copy the string.
+## 1. Database (Neon — this is what makes data persist)
+
+The database is external to Northflank, so it survives every deploy. Create a
+free [Neon](https://neon.tech) project (no card) and copy its connection string
+(`postgres://…?sslmode=require`) — that becomes `DATABASE_URL` below. If you
+already have one, reuse it; your existing data comes right back.
+
+(Alternative, if you'd rather not use Postgres: attach a Northflank **persistent
+volume** mounted at `/app/data` and leave `DATABASE_URL` unset — the JSON files
+then live on the volume and survive deploys. Postgres is recommended.)
 
 ## 2. Create the service
 
@@ -29,11 +48,12 @@ Add these under the service's **Environment** tab. Mark secrets as secrets.
 
 | Variable | Required | Value / notes |
 |---|---|---|
-| `DATABASE_URL` | **yes** | Neon connection string. Without it, data falls back to JSON files on the container disk and is lost on redeploy. |
+| `DATABASE_URL` | **YES — or data is lost** | Neon connection string. Without it, everything is stored on the disposable container disk and erased on every deploy. |
+| `REQUIRE_DB` | strongly recommended | `1` — makes Atlas refuse to boot without `DATABASE_URL`, so you can never accidentally run on ephemeral disk and lose data. |
 | `ADMIN_CODE` | **yes** | Access code for the Operations console. Change from the default before going live. |
 | `ADMIN_MOUNT` | **yes** | `path` — serves the Operations console on the same port at `/atlas-operations` (single-port host). |
 | `TRUST_PROXY` | **yes** | `1` — Northflank terminates TLS in front of the app; this makes rate-limiting and IP logging see real client IPs. |
-| `MYAGENT_SECRET` | recommended | Session-signing secret. Set it so sessions survive redeploys; otherwise one is generated per boot. |
+| `ATLAS_SECRET` (or `MYAGENT_SECRET`) | recommended | Session-signing secret. Set it so sessions + trusted devices survive redeploys; otherwise one is generated per boot. |
 | `MYAGENT_NAME` | no | Agent display name (default `ATLAS`). |
 | `MYAGENT_EMAIL_MINUTES` | no | Inbound-email poll interval (default 3). |
 | `MYAGENT_STUDY_MINUTES` | no | Self-study loop interval; unset disables. |

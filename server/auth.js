@@ -176,8 +176,8 @@ export function beginTotpSetup(user) {
   user.totp.secret = secret;
   user.totp.enabled = false;
   saveUsers();
-  const label = encodeURIComponent(`myAgent:${user.email}`);
-  return { secret, otpauth: `otpauth://totp/${label}?secret=${secret}&issuer=myAgent&digits=6&period=30` };
+  const label = encodeURIComponent(`Atlas:${user.email}`);
+  return { secret, otpauth: `otpauth://totp/${label}?secret=${secret}&issuer=Atlas&digits=6&period=30` };
 }
 export function enableTotp(user, code) {
   if (!user.totp.secret || !totpVerify(user.totp.secret, code)) return null;

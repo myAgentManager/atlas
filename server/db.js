@@ -13,6 +13,30 @@ import { config } from './config.js';
 const url = process.env.DATABASE_URL || '';
 export const dbMode = url ? 'postgres' : 'files';
 
+// Data safety: in files mode, everything lives on the local disk. On a cloud
+// host with an ephemeral filesystem (Northflank, Render, Fly, containers) that
+// disk is WIPED on every deploy/restart — so all accounts and settings vanish.
+// Set DATABASE_URL to a Postgres (Neon) string to persist. REQUIRE_DB=1 makes
+// the app refuse to boot in files mode, so you can't accidentally ship ephemeral.
+if (dbMode === 'files') {
+  const requireDb = /^(1|true|yes)$/i.test(process.env.REQUIRE_DB || '');
+  const line = '─'.repeat(64);
+  const warn = [
+    '', line,
+    '  ⚠  DATA IS NOT PERSISTENT — no DATABASE_URL is set.',
+    '     Accounts, settings, and everything else are stored as JSON files',
+    '     on this machine\'s disk. On a cloud host that disk is ERASED on every',
+    '     deploy/restart, so all data will be LOST.',
+    '     → Set DATABASE_URL to your Neon/Postgres connection string to persist.',
+    line, '',
+  ].join('\n');
+  if (requireDb) {
+    console.error(warn + '\n  REQUIRE_DB is set → refusing to start without a database.\n');
+    process.exit(1);
+  }
+  console.warn(warn);
+}
+
 let pool = null;
 const docs = new Map(); // in-memory cache in postgres mode
 

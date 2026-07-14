@@ -57,7 +57,7 @@ export default function Login({ agent, onDone, onHome }) {
       <div className="home-grain" />
       <button className="brand-btn auth-brand" onClick={onHome}>
         <Mark size={26} />
-        <span className="wordmark sm"><span className="wordmark-my">my</span><span className="wordmark-agent">Agent</span></span>
+        <span className="wordmark sm"><span className="wordmark-agent">Atlas</span></span>
       </button>
 
       <form className="panel auth-card" onSubmit={submit}>

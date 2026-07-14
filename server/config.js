@@ -32,7 +32,7 @@ fs.mkdirSync(dataDir, { recursive: true });
 
 // Session-signing secret: from env, else generated once and persisted.
 function loadSecret() {
-  if (process.env.MYAGENT_SECRET) return process.env.MYAGENT_SECRET;
+  if (process.env.ATLAS_SECRET || process.env.MYAGENT_SECRET) return process.env.ATLAS_SECRET || process.env.MYAGENT_SECRET;
   const file = path.join(dataDir, '.secret');
   try { return fs.readFileSync(file, 'utf8').trim(); } catch {}
   const secret = crypto.randomBytes(32).toString('hex');
@@ -49,7 +49,7 @@ export const config = Object.freeze({
   adminCode: process.env.ADMIN_CODE || '782677',
   secret: loadSecret(),
 
-  agentName: process.env.MYAGENT_NAME || 'ATLAS',
+  agentName: process.env.ATLAS_NAME || process.env.MYAGENT_NAME || 'Atlas',
   engineVersion: '1.0',
   maxSteps: Number(process.env.MYAGENT_MAX_STEPS) || 16,
 

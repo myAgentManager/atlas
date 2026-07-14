@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "type": "module",
-  "description": "myAgent — AI agents that run your business's front line. By Atlas Networks, on ATLAS Core.",
+  "description": "Atlas — AI agents that run your business's front line. By Atlas Networks, on ATLAS Core.",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",

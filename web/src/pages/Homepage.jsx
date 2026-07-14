@@ -13,7 +13,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
 
       {/* nav */}
       <nav className="home-nav">
-        <div className="brandline"><Mark size={28} /><span className="wordmark"><span className="wordmark-my">my</span><span className="wordmark-agent">Agent</span></span></div>
+        <div className="brandline"><Mark size={28} /><span className="wordmark"><span className="wordmark-agent">Atlas</span></span></div>
         <div className="home-nav-right">
           <span className={`net-badge ${connected || agent ? 'on' : 'off'}`}>
             <span className="led" /> {agent ? 'atlas network · online' : 'connecting…'}
@@ -38,7 +38,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
             An AI agent<br />at the front desk<br /><span className="accent">of your business.</span>
           </h1>
           <p className="hero-sub">
-            myAgent answers your email, live chat, and messages, books appointments, takes
+            Atlas answers your email, live chat, and messages, books appointments, takes
             orders, handles FAQs, and follows up with customers — in every language, around
             the clock. You set it up once; it runs the busywork while you run the business.
           </p>
@@ -187,7 +187,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       </section>
 
       <footer className="home-foot">
-        myAgent — a product of <b className="foot-brand">Atlas Networks</b> · powered by ATLAS Core · {new Date().getFullYear()}
+        Atlas — a product of <b className="foot-brand">Atlas Networks</b> · powered by ATLAS Core · {new Date().getFullYear()}
       </footer>
     </div>
   );

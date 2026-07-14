@@ -27,7 +27,7 @@ export async function dispatch(user, event, task, detail = '') {
   const jobs = [];
   if (ig.webhookUrl) {
     jobs.push(post(ig.webhookUrl, {
-      source: 'myAgent', event, taskId: task.id, title, status: task.status,
+      source: 'Atlas', event, taskId: task.id, title, status: task.status,
       result: detail || null, at: new Date().toISOString(),
     }).catch((e) => audit('integration', `webhook failed for ${user.email}: ${e.message}`)));
   }

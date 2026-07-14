@@ -106,7 +106,7 @@ export const CONNECTORS = {
   },
   pbx: {
     id: 'pbx', name: 'PBX / VoIP extension', icon: 'plug',
-    blurb: 'Register myAgent as an extension on your FreePBX/Asterisk. Test the connection here; calls are answered through the IVR bridge below.',
+    blurb: 'Register Atlas as an extension on your FreePBX/Asterisk. Test the connection here; calls are answered through the IVR bridge below.',
     fields: [
       { key: 'host', label: 'SIP host (public IP or domain you port-forward)', placeholder: 'pbx.yourbusiness.com' },
       { key: 'port', label: 'SIP port (UDP)', placeholder: '5060' },

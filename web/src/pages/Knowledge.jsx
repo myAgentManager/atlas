@@ -13,6 +13,8 @@ export default function Knowledge() {
   const [fact, setFact] = useState('');
   const [studying, setStudying] = useState(false);
   const [answers, setAnswers] = useState({});
+  const [bulk, setBulk] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const load = () => { api.knowledge().then(setK).catch(() => {}); };
   useEffect(() => {
@@ -28,6 +30,13 @@ export default function Knowledge() {
     catch (e) { toast(e.message, 'err'); }
   };
   const remove = async (id) => { await api.removeFact(id).catch(() => {}); load(); };
+  const importText = async () => {
+    if (!bulk.trim()) return;
+    setImporting(true);
+    try { const r = await api.importKnowledge(bulk); setBulk(''); load(); toast(`Learned ${r.added} new fact${r.added !== 1 ? 's' : ''}.`, 'ok'); }
+    catch (e) { toast(e.message, 'err'); }
+    finally { setImporting(false); }
+  };
   const study = async () => {
     setStudying(true);
     try { const r = await api.studySite(); toast(`Studied your site — learned ${r.added} new fact${r.added !== 1 ? 's' : ''}.`, 'ok'); load(); }
@@ -84,6 +93,17 @@ export default function Knowledge() {
           <input className="field" placeholder="Topic (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} />
           <textarea className="field textarea" rows={3} placeholder="e.g. We offer 10% off for first-time catering orders over $200." value={fact} onChange={(e) => setFact(e.target.value)} />
           <div className="set-actions"><button className="gel-btn gel-primary" onClick={add}>Add to knowledge</button></div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title"><Icon name="file" size={14} /> Paste in knowledge</div>
+        <p className="dim-note">Drop in a whole document, notes, or a Q&amp;A list and Atlas learns all of it at once — no typing facts one by one. Write questions as <span className="mono tiny">Q: …</span> and answers as <span className="mono tiny">A: …</span>, or just paste plain paragraphs.</p>
+        <textarea className="field textarea" rows={6} placeholder={'Paste anything about your business…\n\nOr a list:\nQ: Do you offer gift cards?\nA: Yes, in any amount — in store or over the phone.'} value={bulk} onChange={(e) => setBulk(e.target.value)} />
+        <div className="set-actions">
+          <button className="gel-btn gel-primary" disabled={importing || !bulk.trim()} onClick={importText}>
+            {importing ? <><Mark size={15} spin /> Learning…</> : <>Teach Atlas all of this</>}
+          </button>
         </div>
       </div>
 

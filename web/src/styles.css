@@ -1694,3 +1694,16 @@ body {
 .pbx-test-result.ok { color: var(--green); }
 .pbx-test-result.err { color: var(--red); }
 .pbx-test-result .icon { flex: none; margin-top: 2px; }
+
+/* v21 — service options (how a business operates) */
+.svc-opts { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 6px; }
+.svc-opt { padding: 10px 12px; border-radius: 12px; background: var(--glass-soft); border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--glass-edge); transition: border-color 0.15s, background 0.15s; }
+.svc-opt.on { border-color: var(--cyan); background: linear-gradient(180deg, rgba(23,201,182,0.10), rgba(23,201,182,0.03)); }
+.svc-toggle { display: flex; align-items: center; gap: 11px; cursor: pointer; user-select: none; }
+.svc-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.svc-check { width: 42px; height: 24px; border-radius: 20px; background: var(--well); border: 1px solid var(--line); position: relative; flex: none; transition: background 0.18s; }
+.svc-check::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(2,8,20,0.35); transition: transform 0.18s; }
+.svc-opt.on .svc-check { background: linear-gradient(180deg, #1dd3bf, #0fb5a4); border-color: transparent; }
+.svc-opt.on .svc-check::after { transform: translateX(18px); }
+.svc-label { font-size: 14px; font-weight: 600; color: var(--ink); }
+.svc-detail { margin-top: 10px; font-size: 13px; }

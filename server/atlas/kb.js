@@ -140,6 +140,36 @@ export function absorbBusiness(userId, profile, faqs) {
   return added;
 }
 
+// Bulk-teach Atlas from pasted text — no typing facts one at a time. Two shapes,
+// auto-detected: "Q: … / A: …" pairs become question→answer facts; anything
+// else is split into informative sentences and filed. Paste a doc (even one a
+// tool like Gemini wrote for you) and Atlas learns the whole thing.
+export function importText(userId, raw, source = 'pasted') {
+  const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return { added: 0, mode: 'empty' };
+  let added = 0;
+
+  // Q/A shape: lines like "Q: …" then "A: …" (also "Question:/Answer:", "- Q").
+  const qa = [...text.matchAll(/^[\s\-*]*(?:Q|Question)\s*[:.\)]\s*(.+?)\s*\n+[\s\-*]*(?:A|Answer)\s*[:.\)]\s*([\s\S]*?)(?=\n\s*(?:[\-*]*\s*(?:Q|Question)\s*[:.\)])|\n\s*\n|$)/gim)];
+  if (qa.length) {
+    for (const m of qa) {
+      const q = m[1].replace(/\s+/g, ' ').trim();
+      const a = m[2].replace(/\s+/g, ' ').trim();
+      if (q && a && addFact(userId, { topic: q.slice(0, 60), fact: a, source })) added++;
+    }
+    return { added, mode: 'qa' };
+  }
+
+  // Freeform: keep the informative sentences, file each as a fact.
+  const sentences = splitSentences(text)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+    .filter((s) => s.length >= 25 && s.length <= 300 && /[a-z]/i.test(s));
+  for (const s of sentences.slice(0, 60)) {
+    if (addFact(userId, { topic: keywords(s, 3).join(' '), fact: s, source })) added++;
+  }
+  return { added, mode: 'text' };
+}
+
 export function kbStats(userId) {
   const n = node(userId);
   return {

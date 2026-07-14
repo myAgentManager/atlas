@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <rect width="1080" height="1080" fill="#eef1f8"/>
+  <rect width="1080" height="1080" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="#dfe6f4"/><stop offset="100%" stop-color="#eef1f8"/></linearGradient>
+    <radialGradient id="au1" cx="80%" cy="8%" r="60%"><stop offset="0%" stop-color="rgba(52,227,208,0.20)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+    <radialGradient id="au2" cx="12%" cy="30%" r="55%"><stop offset="0%" stop-color="rgba(96,138,255,0.16)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+    <radialGradient id="au3" cx="65%" cy="105%" r="60%"><stop offset="0%" stop-color="rgba(182,128,255,0.12)"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#au1)"/>
+  <rect width="1080" height="1080" fill="url(#au2)"/>
+  <rect width="1080" height="1080" fill="url(#au3)"/>
+  <defs>
+    <radialGradient id="sealight10801080clean" cx="34%" cy="26%" r="90%">
+      <stop offset="0%" stop-color="#5a9be0"/><stop offset="35%" stop-color="#2762ad"/>
+      <stop offset="70%" stop-color="#123a77"/><stop offset="100%" stop-color="#050f2b"/>
+    </radialGradient>
+    <radialGradient id="shadelight10801080clean" cx="34%" cy="26%" r="95%">
+      <stop offset="0%" stop-color="#000" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000814" stop-opacity="0.55"/>
+    </radialGradient>
+    <linearGradient id="glosslight10801080clean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="60%" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="disclight10801080clean"><circle cx="32" cy="32" r="28"/></clipPath>
+  </defs>
+  <g transform="translate(342.51 169.71) scale(6.1714)">
+    <circle cx="32" cy="32" r="30" fill="#0a1e42" opacity="0.5"/>
+    <circle cx="32" cy="32" r="28" fill="url(#sealight10801080clean)"/>
+    <g clip-path="url(#disclight10801080clean)">
+      <g fill="#0a2a55" transform="translate(0.9 1.2)" opacity="0.85">
+        <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z"/>
+        <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z"/>
+        <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z"/>
+        <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z"/>
+      </g>
+      <g fill="#f7fafd">
+        <path d="M20 14c4-3 9-2 11 1s0 6 3 7 8-1 10 2 1 6-2 7-7 0-9 3-1 7-4 8-7-1-8-5 1-6-1-9-6-3-6-7 3-5 6-7Z"/>
+        <path d="M45 12c3-1 8 0 10 3l1 3c-3 2-7 2-9-1s-4-4-2-5Z"/>
+        <path d="M27 45c3-1 6 1 6 4s-2 6-5 6-5-3-4-6 1-3 3-4Z"/>
+        <path d="M48 40c3 0 6 3 5 6s-5 4-7 1 0-7 2-7Z"/>
+      </g>
+      <circle cx="32" cy="32" r="28" fill="url(#shadelight10801080clean)"/>
+      <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z" fill="url(#glosslight10801080clean)" opacity="0.8"/>
+      <ellipse cx="22" cy="12.5" rx="7.5" ry="4" fill="#fff" opacity="0.9"/>
+    </g>
+    <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" stroke-opacity="0.8" stroke-width="1" fill="none"/>
+    <circle cx="32" cy="32" r="30" fill="none" stroke="#34e3d0" stroke-opacity="0.35" stroke-width="0.6"/>
+  </g></svg>

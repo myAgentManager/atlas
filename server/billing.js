@@ -2,6 +2,7 @@
 // is configured; otherwise runs a fully-working DEMO mode where plan changes
 // apply instantly with no charge — so the whole billing UX is testable before
 // you wire real keys. Plan → tool-deck entitlements live in config.plans.
+import crypto from 'node:crypto';
 import { config } from './config.js';
 import { getUser, updateUser, publicUser, audit } from './auth.js';
 import { getPlatform } from './platform.js';
@@ -117,8 +118,20 @@ export function setPlan(userId, planId, extra = {}) {
   });
 }
 
-// Stripe webhook (checkout.session.completed / subscription updates). Signature
-// verification is best-effort here; harden with the signing secret in prod.
+// Verify a Stripe webhook signature (t=…,v1=… → HMAC-SHA256 of "t.body" with
+// the signing secret). Without a configured secret we trust NOTHING — otherwise
+// anyone could POST a fake "subscription completed" and upgrade for free.
+export function verifyWebhook(rawBody, sigHeader) {
+  const secret = getPlatform().stripe?.webhookSecret || config.stripe.webhookSecret;
+  if (!secret) return false;
+  const parts = Object.fromEntries(String(sigHeader || '').split(',').map((kv) => kv.split('=')));
+  if (!parts.t || !parts.v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(parts.t)) > 300) return false; // 5-min replay window
+  const expected = crypto.createHmac('sha256', secret).update(`${parts.t}.${rawBody}`).digest('hex');
+  try { return crypto.timingSafeEqual(Buffer.from(parts.v1), Buffer.from(expected)); } catch { return false; }
+}
+
+// Stripe webhook (checkout.session.completed / subscription updates).
 export function handleWebhook(event) {
   const obj = event?.data?.object || {};
   const userId = obj.metadata?.userId;

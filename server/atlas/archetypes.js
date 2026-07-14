@@ -189,6 +189,65 @@ export const ARCHETYPES = {
 
 export const archetype = (id) => ARCHETYPES[id] || ARCHETYPES.other;
 
+// The yes/no service questions each KIND of business is asked at setup — the
+// answer is how Atlas KNOWS a given restaurant takes walk-ins (or doesn't),
+// delivers (or doesn't), and where to send customers for each. `detail` is the
+// "where/how" follow-up shown when a service is switched on. Each option maps
+// to phrasing Atlas uses, and `match` is how it recognizes the customer asking.
+export const SERVICE_QUESTIONS = {
+  cafe: [
+    { key: 'walkins', label: 'Walk-ins welcome', match: /\b(walk[ -]?in|just (come|stop|drop)|no (appointment|reservation)|do i need)/i, yes: 'Walk right in — no reservation needed', no: "We're not taking walk-ins right now" },
+    { key: 'takeout', label: 'Takeout / order ahead', detail: 'How should they order ahead?', match: /\b(takeout|take[ -]?away|to[ -]?go|order ahead|pick ?up)/i, yes: 'Yep, we do takeout', no: "We're dine-in only" },
+    { key: 'delivery', label: 'Delivery', detail: 'Where/how do you deliver? (e.g. DoorDash, or your own within 5 mi)', match: /\b(deliver|delivery|bring it|drop it off)/i, yes: 'We deliver', no: "We don't deliver" },
+    { key: 'catering', label: 'Catering', detail: 'Anything to know about catering orders?', match: /\b(cater|catering|large order|office|event)/i, yes: 'We cater', no: "We don't do catering" },
+  ],
+  restaurant: [
+    { key: 'reservations', label: 'Take reservations', detail: 'How should they reserve?', match: /\b(reserv|book a table|table for)/i, yes: 'We take reservations', no: "We don't take reservations — it's first come, first served" },
+    { key: 'walkins', label: 'Walk-ins welcome', match: /\b(walk[ -]?in|just (come|show)|without a reservation|no reservation)/i, yes: 'Walk-ins are always welcome', no: 'We seat by reservation only' },
+    { key: 'takeout', label: 'Takeout', detail: 'How should they order takeout?', match: /\b(takeout|take[ -]?away|to[ -]?go|pick ?up|carry ?out)/i, yes: 'Yes, we do takeout', no: "We're dine-in only" },
+    { key: 'delivery', label: 'Delivery', detail: 'Where/how do you deliver?', match: /\b(deliver|delivery)/i, yes: 'We deliver', no: "We don't deliver" },
+  ],
+  salon: [
+    { key: 'appointments', label: 'By appointment', detail: 'How should they book?', match: /\b(appointment|book|schedule)/i, yes: "We're appointment-based", no: '' },
+    { key: 'walkins', label: 'Walk-ins when there\'s room', match: /\b(walk[ -]?in|just (come|stop)|without an appointment|no appointment)/i, yes: "Walk-ins are welcome when there's a free chair", no: "We're appointment-only, so it's best to book ahead" },
+  ],
+  clinic: [
+    { key: 'newpatients', label: 'Accepting new patients', match: /\b(new patient|taking patients|accepting|first time)/i, yes: "We're taking new patients", no: "We're not accepting new patients right now" },
+    { key: 'walkins', label: 'Walk-ins / urgent visits', match: /\b(walk[ -]?in|urgent|same[ -]?day|without an appointment)/i, yes: 'We keep room for walk-ins and urgent visits', no: 'Visits are by appointment' },
+    { key: 'telehealth', label: 'Virtual / telehealth visits', detail: 'How do telehealth visits work?', match: /\b(virtual|telehealth|video|remote|online) (visit|appointment|call)?\b/i, yes: 'We offer virtual visits', no: 'Visits are in person' },
+  ],
+  retail: [
+    { key: 'instore', label: 'Shop in-store', match: /\b(in[ -]?store|come by|walk[ -]?in|browse)/i, yes: 'Come browse in-store anytime during opening hours', no: "We're online-only" },
+    { key: 'delivery', label: 'Delivery / shipping', detail: 'Where/how do you ship or deliver?', match: /\b(deliver|delivery|ship|shipping|mail)/i, yes: 'We ship and deliver', no: "We don't ship — it's in-store only" },
+    { key: 'curbside', label: 'Curbside pickup', detail: 'How does curbside work?', match: /\b(curbside|pick ?up|collect|hold)/i, yes: 'We do curbside pickup', no: "We don't offer curbside" },
+  ],
+  services: [
+    { key: 'onsite', label: 'We come to you', match: /\b(come to|on[ -]?site|my (home|house|place)|visit)/i, yes: 'We come to you', no: 'Service is at our location' },
+    { key: 'quotes', label: 'Free quotes / estimates', detail: 'How do they get a quote?', match: /\b(quote|estimate|how much|cost|price)/i, yes: 'We give free quotes', no: '' },
+    { key: 'emergency', label: 'Emergency callouts', detail: 'How should they reach you for emergencies?', match: /\b(emergency|urgent|asap|right now|24[ /]?7)/i, yes: 'We handle emergencies', no: 'We work by appointment' },
+  ],
+  fitness: [
+    { key: 'classes', label: 'Group classes', detail: 'How do they reserve a class?', match: /\b(class|classes|session)/i, yes: 'We run group classes', no: '' },
+    { key: 'dropins', label: 'Drop-ins welcome', match: /\b(drop[ -]?in|walk[ -]?in|just come|without a membership|no membership)/i, yes: 'Drop-ins are welcome', no: "We're members-only" },
+    { key: 'training', label: 'Personal training', detail: 'How do they book a trainer?', match: /\b(personal train|1[ -]?on[ -]?1|trainer|one on one)/i, yes: 'We offer personal training', no: '' },
+  ],
+  professional: [
+    { key: 'consultation', label: 'Free consultation', detail: 'How do they book it?', match: /\b(consult|free|first meeting|intro)/i, yes: 'We start with a consultation', no: '' },
+    { key: 'remote', label: 'Remote / virtual available', detail: 'How do remote sessions work?', match: /\b(remote|virtual|online|video|phone|zoom)/i, yes: 'We work remotely too', no: "We meet in person" },
+  ],
+  hospitality: [
+    { key: 'reservations', label: 'Room reservations', detail: 'How do they book?', match: /\b(reserv|book a room|availability|vacan)/i, yes: 'We take reservations', no: '' },
+    { key: 'walkins', label: 'Walk-in availability', match: /\b(walk[ -]?in|tonight|right now|without a reservation)/i, yes: 'We take walk-ins when we have rooms', no: 'Rooms are by reservation' },
+    { key: 'events', label: 'Host events', detail: 'What kind of events, and how to inquire?', match: /\b(event|wedding|party|conference|meeting|banquet)/i, yes: 'We host events', no: "We don't host events" },
+  ],
+  other: [
+    { key: 'appointments', label: 'By appointment', match: /\b(appointment|book|schedule)/i, yes: 'We work by appointment', no: '' },
+    { key: 'walkins', label: 'Walk-ins welcome', match: /\b(walk[ -]?in|just come|drop by)/i, yes: 'Walk-ins are welcome', no: 'We work by appointment' },
+  ],
+};
+
+export const serviceQuestions = (id) => SERVICE_QUESTIONS[id] || SERVICE_QUESTIONS.other;
+
 // Classify a business from its own words (name + tagline + about + services).
 // Whole-word keyword scoring — name hits count double since "Luna Beans Cafe"
 // says more about what you are than a stray word in the about text.
@@ -216,4 +275,8 @@ export function detectArchetype(nameText, aboutText = '') {
 // Public list for the UI. Includes the starter pack so the Business page can
 // offer one-click "typical setup" fills (no need to ship KB starter facts).
 export const archetypeList = () =>
-  Object.values(ARCHETYPES).map((a) => ({ id: a.id, name: a.name, icon: a.icon, bookable: a.bookable, visit: a.visit, bookNoun: a.bookNoun, caps: a.caps, pack: a.pack }));
+  Object.values(ARCHETYPES).map((a) => ({
+    id: a.id, name: a.name, icon: a.icon, bookable: a.bookable, visit: a.visit, bookNoun: a.bookNoun, caps: a.caps, pack: a.pack,
+    // strip the RegExp (not JSON-safe) — the client only needs key/label/detail
+    services: (SERVICE_QUESTIONS[a.id] || []).map((s) => ({ key: s.key, label: s.label, detail: s.detail || '' })),
+  }));

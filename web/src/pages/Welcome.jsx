@@ -5,6 +5,7 @@ import { toast } from '../toast.jsx';
 import { grasp } from '../understanding.js';
 import HoursPicker, { composeHours, defaultGroups } from '../HoursPicker.jsx';
 import { formatPhone } from '../format.js';
+import ServiceOptions, { fullServiceOptions } from '../ServiceOptions.jsx';
 
 // First-run setup wizard. Name + kind of business → the basics Atlas answers
 // with on day one (hours, phone) → plan → optional tools → required 2SV for
@@ -21,6 +22,7 @@ export default function Welcome({ agent, user, onDone, onGo }) {
   const [lastName, setLastName] = useState((user?.name || '').split(' ').slice(1).join(' ') || '');
   const [address, setAddress] = useState('');
   const [website, setWebsite] = useState('');
+  const [serviceOpts, setServiceOpts] = useState({});
   const [planId, setPlanId] = useState('free');
   const [plans, setPlans] = useState([]);
   const [archetypes, setArchetypes] = useState([]);
@@ -51,6 +53,7 @@ export default function Welcome({ agent, user, onDone, onGo }) {
       phone: formatPhone(phone),
       address: address.trim(),
       website: website.trim(),
+      serviceOptions: fullServiceOptions(pickedArch?.services, serviceOpts),
     }).catch(() => {});
     setStep(2);
   };
@@ -137,6 +140,12 @@ export default function Welcome({ agent, user, onDone, onGo }) {
             <label className="auth-label">Business address
               <input className="field" placeholder="12 Bean Street, Portland, OR" value={address} onChange={(e) => setAddress(e.target.value)} />
             </label>
+            {pickedArch?.services?.length > 0 && (
+              <>
+                <div className="cap-pick-label">How you operate <span className="dim-note-inline">(so Atlas answers walk-ins, delivery, and the rest correctly)</span></div>
+                <ServiceOptions services={pickedArch.services} value={serviceOpts} onChange={setServiceOpts} />
+              </>
+            )}
             <div className="wizard-foot">
               <button className="gel-btn" onClick={() => setStep(0)}>Back</button>
               <button className="gel-btn gel-primary" onClick={saveBasics}>Continue <Icon name="arrow" size={15} /></button>

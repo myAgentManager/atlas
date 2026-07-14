@@ -9,7 +9,7 @@ import { bus } from './bus.js';
 import { tokenize } from './atlas/nlu.js';
 import { newVoice, contract, pick, rephrase } from './atlas/voice.js';
 import * as kb from './atlas/kb.js';
-import { archetype, detectArchetype } from './atlas/archetypes.js';
+import { archetype, detectArchetype, serviceQuestions } from './atlas/archetypes.js';
 
 let db = getDoc('business', { biz: {} }); // biz[userId] = { profile, faqs, customers, bookings, inbox }
 const save = () => saveDoc('business', db);
@@ -20,6 +20,7 @@ function biz(userId) {
       name: '', tagline: '', about: '', hours: '', services: '', tone: 'friendly', languages: 'English',
       phone: '', email: '', website: '', address: '', routeTo: '', escalateOn: '', trained: false,
       type: '', typeDetected: '', // what KIND of business this is (owner pick / Atlas's own read)
+      serviceOptions: {}, // { walkins: {enabled, detail}, delivery: {...} } — how THIS business operates
     },
     faqs: [],
     customers: [],
@@ -230,6 +231,33 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     return ht.length > 0 && ht.filter((w) => priorTokens.has(w)).length / ht.length >= 0.7;
   };
 
+  // -- service policy: how THIS business actually operates (walk-ins, delivery,
+  // takeout…). The owner set these at setup, so Atlas answers from fact rather
+  // than the archetype's default assumption — this is how it KNOWS whether a
+  // given restaurant takes walk-ins, and where to send people for delivery.
+  const svc = p.serviceOptions || {};
+  let answeredVisit = false;
+  for (const q of serviceQuestions(p.type || p.typeDetected)) {
+    const opt = svc[q.key];
+    if (!opt || opt.enabled === undefined || !q.match.test(text)) continue;
+    if (opt.enabled) {
+      const detail = String(opt.detail || '').trim();
+      const line = detail ? `${q.yes} — ${detail}` : q.yes;
+      if (!restates(line)) { parts.push(line); intents.add('faq'); }
+    } else if (q.no && !restates(q.no)) { parts.push(q.no); intents.add('faq'); }
+    if (['walkins', 'reservations', 'appointments', 'instore', 'onsite', 'dropins'].includes(q.key)) answeredVisit = true;
+  }
+  // the owner's walk-in policy overrides the archetype's built-in assumption
+  const isWalkin = svc.walkins?.enabled !== undefined ? svc.walkins.enabled
+    : svc.instore?.enabled !== undefined ? svc.instore.enabled
+    : svc.dropins?.enabled !== undefined ? svc.dropins.enabled
+    : !arch.bookable;
+  // …and whether it actually takes bookings (so we never offer a table at a
+  // reservations-off restaurant)
+  const takesBookings = svc.reservations?.enabled !== undefined ? svc.reservations.enabled
+    : svc.appointments?.enabled !== undefined ? svc.appointments.enabled
+    : arch.bookable;
+
   // -- the FAQ + knowledge database (what Atlas has learned) ------------------
   // Facts get said in Atlas's own words — copied, rephrased, then given.
   const stem = (w) => w.replace(/(ing|ers?|es|ed|s)$/, '');
@@ -245,16 +273,18 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     faqStems = new Set(tokenize(faq.q + ' ' + faq.a).map(stem));
   }
   for (const f of kb.search(userId, text, 2)) {
-    // the intent branches below answer visit/booking themselves — don't let a
-    // knowledge fact say the same thing a second time in different words
-    if ((explicitBook || wantsVisit) && /\b(book|booking|reservation|appointment|walk in|visit|class)\b/i.test(f.topic)) continue;
+    // the intent branches below (and the service-policy block) answer
+    // visit/booking themselves — don't let a starter fact repeat it differently
+    if ((explicitBook || wantsVisit || answeredVisit) && /\b(book|booking|reservation|appointment|walk[ -]?in|visit|class)\b/i.test(f.topic)) continue;
     // the FAQ already covered this topic → one answer is enough
     if (faqStems && tokenize(f.topic).map(stem).filter((w) => faqStems.has(w)).length > 0) continue;
     if (!restates(f.fact)) { parts.push(rephrase(r, f.fact)); intents.add('faq'); }
   }
 
   // -- action intents: answer them the way THIS business would -----------------
-  if ((explicitBook || wantsVisit) && !arch.bookable) {
+  if (answeredVisit && !explicitBook) {
+    // the service-policy block already answered the walk-in/visit question
+  } else if ((explicitBook || wantsVisit) && isWalkin && !answeredVisit) {
     // walk-in business: nothing to book — just come on by
     const hoursNote = p.hours && !saidHours && !saidEarlier(`open hours ${p.hours}`);
     const line = pick(r, [
@@ -263,9 +293,9 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
     ]);
     if (!restates(line)) parts.push(line);
     intents.add('faq');
-  } else if ((explicitBook || wantsVisit) && can.booking === false) {
+  } else if ((explicitBook || wantsVisit) && can.booking === false && takesBookings) {
     parts.push(`I've noted your request and someone from the team will follow up to get you scheduled.`);
-  } else if (explicitBook) {
+  } else if (explicitBook && takesBookings) {
     const ask = noun === 'table' ? 'what date, time, and party size?'
       : noun === 'room' ? 'what dates, and how many guests?'
       : noun === 'class' ? 'which class, and what day?'
@@ -276,7 +306,7 @@ export function respond(userId, text, { greeted = false, channel = 'chat', can =
       `let's get you ${noun === 'table' || noun === 'room' ? nounPhrase : 'booked in'}${Day ? ` for ${Day}` : ''} — ${ask}`,
     ]));
     intents.add('booking');
-  } else if (wantsVisit) {
+  } else if (wantsVisit && !answeredVisit) {
     // visit phrasing at a bookable business → offer to set it up, don't presume
     parts.push(pick(r, [
       `we're ${arch.visit}-based — want me to set up ${nounPhrase}${Day ? ` for ${Day}` : ''}?`,

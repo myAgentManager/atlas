@@ -5,6 +5,7 @@ import { toast } from '../toast.jsx';
 import { grasp } from '../understanding.js';
 import HoursPicker, { composeHours, defaultGroups } from '../HoursPicker.jsx';
 import { formatPhone } from '../format.js';
+import ServiceOptions, { fullServiceOptions } from '../ServiceOptions.jsx';
 
 // What the agents learn: the business profile, contact details, human routing,
 // and the FAQ. A clean form panel, like the integrations deck.
@@ -73,6 +74,14 @@ export default function Business() {
               )}
             </span>
           </p>
+        )}
+        {effectiveArch?.services?.length > 0 && (
+          <>
+            <div className="cap-pick-label">How you operate <span className="dim-note-inline">(Atlas answers these from what you set here)</span></div>
+            <ServiceOptions services={effectiveArch.services}
+              value={p.serviceOptions || {}}
+              onChange={(v) => setP({ ...p, serviceOptions: fullServiceOptions(effectiveArch.services, v) })} />
+          </>
         )}
         <label className="auth-label">About — what should agents know?<textarea className="field textarea" rows={3} {...field('about')} placeholder="A cozy neighborhood cafe specializing in single-origin espresso and fresh pastries. We also cater events." /></label>
         <div className="biz-grid">

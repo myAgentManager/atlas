@@ -50,6 +50,14 @@ app.use((req, res, next) => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   });
+  // Lock the app down to same-origin assets (real XSS mitigation). The admin
+  // console renders its own inline script/style, so it's exempt and keeps its
+  // own trust boundary (the access code).
+  if (!req.path.startsWith('/atlas-operations')) {
+    res.set('Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; " +
+      "script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'");
+  }
   if (req.secure) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 });
@@ -416,7 +424,12 @@ app.post('/api/billing/cancel', auth.requireAuth, async (req, res) => {
   res.json({ user: auth.publicUser(auth.getUser(req.user.id)) });
 });
 app.post('/api/billing/webhook', express.raw({ type: '*/*' }), (req, res) => {
-  try { billing.handleWebhook(JSON.parse(req.body.toString('utf8'))); } catch {}
+  const raw = req.body?.toString('utf8') || '';
+  if (!billing.verifyWebhook(raw, req.headers['stripe-signature'])) {
+    auth.audit('billing', `rejected webhook with bad/missing signature from ${req.ip}`);
+    return res.status(400).json({ error: 'invalid signature' });
+  }
+  try { billing.handleWebhook(JSON.parse(raw)); } catch {}
   res.json({ received: true });
 });
 
@@ -556,6 +569,14 @@ app.post('/api/knowledge/fact', auth.requireAuth, (req, res) => {
   return row ? res.status(201).json(row) : bad(res, 400, 'Give me a fact of at least a few words.');
 });
 app.delete('/api/knowledge/fact/:id', auth.requireAuth, (req, res) => res.json({ ok: kb.removeFact(req.user.id, req.params.id) }));
+// Bulk-teach from pasted text (freeform or Q:/A: pairs) — no one-at-a-time typing.
+app.post('/api/knowledge/import', auth.requireAuth, (req, res) => {
+  const text = String(req.body?.text || '');
+  if (text.length > 100_000) return bad(res, 413, 'That is a lot of text — paste up to ~100k characters at a time.');
+  const out = kb.importText(req.user.id, text, 'pasted');
+  if (!out.added) return bad(res, 400, 'Couldn\'t find anything to learn in there — try a few sentences, or a "Q: / A:" list.');
+  res.json(out);
+});
 app.post('/api/knowledge/gap/:id/resolve', auth.requireAuth, (req, res) => {
   const row = kb.resolveGap(req.user.id, req.params.id, req.body?.answer);
   return row ? res.json(row) : bad(res, 400, 'Give an answer so I can learn it.');

@@ -87,6 +87,7 @@ export const api = {
   removeFact: (id) => send(`/api/knowledge/fact/${id}`, 'DELETE'),
   resolveGap: (id, answer) => post(`/api/knowledge/gap/${id}/resolve`, { answer }),
   studySite: () => post('/api/knowledge/study-site'),
+  importKnowledge: (text) => post('/api/knowledge/import', { text }),
   agentConversations: (id) => get(`/api/agents/${id}/conversations`),
   customerDetail: (id) => get(`/api/business/customers/${id}`),
 

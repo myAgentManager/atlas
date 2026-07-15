@@ -1,4 +1,4 @@
-// Generates the myAgent social-media brand kit: the glossy globe on themed
+// Generates the Atlas social-media brand kit: the blue wireframe globe on themed
 // backgrounds, in every ad format, dark + light, with and without the wordmark.
 // Output → brand/*.svg (scalable; open in a browser and export PNG at any size).
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -20,17 +20,13 @@ function globe(cx, cy, r, id) {
       <stop offset="0%" stop-color="#000" stop-opacity="0"/><stop offset="72%" stop-color="#000" stop-opacity="0"/>
       <stop offset="100%" stop-color="#000814" stop-opacity="0.55"/>
     </radialGradient>
-    <linearGradient id="gloss${id}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#fff" stop-opacity="0.9"/><stop offset="60%" stop-color="#fff" stop-opacity="0.25"/>
-      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
     <clipPath id="disc${id}"><circle cx="32" cy="32" r="28"/></clipPath>
   </defs>
   <g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(4)})">
     <circle cx="32" cy="32" r="30" fill="#0a1e42" opacity="0.5"/>
     <circle cx="32" cy="32" r="28" fill="url(#sea${id})"/>
     <g clip-path="url(#disc${id})">
-      <g stroke="#bcdcff" stroke-opacity="0.14" stroke-width="0.7" fill="none">
+      <g stroke="#9fd0ff" stroke-opacity="0.30" stroke-width="0.7" fill="none">
         <ellipse cx="32" cy="32" rx="28" ry="5.6"/>
         <ellipse cx="32" cy="20.5" rx="25.4" ry="4.6"/>
         <ellipse cx="32" cy="11" rx="18.6" ry="3"/>
@@ -40,14 +36,7 @@ function globe(cx, cy, r, id) {
         <ellipse cx="32" cy="32" rx="19" ry="28"/>
         <line x1="32" y1="4" x2="32" y2="60"/>
       </g>
-      <g fill="#f4f8fd">
-        <path d="M21.5 13.5c-3.2.8-5 4-4.4 7.4.5 2.6 2.7 3.6 2.9 6.2.2 3.4-2.4 5.6-1.5 9 .8 3.1 3.6 5.2 5.8 4.3 2.4-1 2.3-4.4 1.4-7-.9-2.5-2.7-3.6-2.4-6.3.3-2.7 2.9-4 3.4-7 .5-3.3-1.6-6.5-5.2-6.6Z" opacity=".96"/>
-        <path d="M35 16.5c5-1.6 11 .2 13.4 4.3 1.6 2.7-.2 5.6-2.6 7.2-2.9 2-6.7 1.6-8.6 4.6-1.8 2.8.2 6.6-2.6 8.6-2.7 1.9-6.4-.1-7.4-3.2-1.2-3.7 1.4-6.8 1.6-10.6.2-4.5 1.6-9.2 6.2-10.9Z"/>
-        <path d="M45.5 40c3-.4 6 2 5.6 5-.4 2.8-3.6 4-6 2.6-2.3-1.4-2.6-4.8-1.3-6.6.5-.7 1-1 1.7-1Z" opacity=".92"/>
-      </g>
       <circle cx="32" cy="32" r="28" fill="url(#shade${id})"/>
-      <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z" fill="url(#gloss${id})" opacity="0.72"/>
-      <ellipse cx="22" cy="12.5" rx="7.5" ry="3.6" fill="#fff" opacity="0.85"/>
     </g>
     <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" stroke-opacity="0.85" stroke-width="1" fill="none"/>
     <circle cx="32" cy="32" r="30" fill="none" stroke="#34e3d0" stroke-opacity="0.35" stroke-width="0.6"/>

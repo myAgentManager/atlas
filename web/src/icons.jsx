@@ -47,9 +47,9 @@ export function Icon({ name, size = 20, className = '' }) {
   );
 }
 
-// The Atlas Networks mark: a skeuomorphic 3D glossy globe — deep navy sphere,
-// beveled white continents, a curved glass reflection across the top, and a
-// rim of bounced light at the base. Transparent outside the sphere.
+// The Atlas mark: a deep-blue globe with a wireframe meridian/parallel grid —
+// no continents, no gloss, just the sphere and its lines. Lit from the upper
+// left by the sea gradient, shaded lower-right, with a faint blue rim bounce.
 export function Mark({ size = 28, spin = false }) {
   const uid = React.useId().replace(/:/g, '');
   return (
@@ -69,12 +69,6 @@ export function Mark({ size = 28, spin = false }) {
           <stop offset="72%" stopColor="#000000" stopOpacity="0" />
           <stop offset="100%" stopColor="#000814" stopOpacity="0.55" />
         </radialGradient>
-        {/* glass window reflection */}
-        <linearGradient id={`gloss${uid}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-          <stop offset="60%" stopColor="#ffffff" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
         {/* bounced light on the bottom rim */}
         <linearGradient id={`rim${uid}`} x1="0" y1="1" x2="0" y2="0">
           <stop offset="0%" stopColor="#6fb6ff" stopOpacity="0.5" />
@@ -87,8 +81,9 @@ export function Mark({ size = 28, spin = false }) {
       <circle cx="32" cy="32" r="28" fill={`url(#sea${uid})`} />
 
       <g clipPath={`url(#disc${uid})`}>
-        {/* wireframe grid — reads as a globe and stays crisp at any size */}
-        <g stroke="#bcdcff" strokeOpacity="0.14" strokeWidth="0.7" fill="none">
+        {/* wireframe meridian/parallel grid — the whole logo is just the blue
+            globe and these lines. Spins as one for the thinking animation. */}
+        <g className="mark-land" stroke="#9fd0ff" strokeOpacity="0.30" strokeWidth="0.7" fill="none">
           <ellipse cx="32" cy="32" rx="28" ry="5.6" />
           <ellipse cx="32" cy="20.5" rx="25.4" ry="4.6" />
           <ellipse cx="32" cy="11" rx="18.6" ry="3" />
@@ -99,24 +94,9 @@ export function Mark({ size = 28, spin = false }) {
           <line x1="32" y1="4" x2="32" y2="60" />
         </g>
 
-        {/* continents — cleaner, smoother landmasses (spin under the static gloss) */}
-        <g className="mark-land" fill="#f4f8fd">
-          {/* left (Americas) */}
-          <path d="M21.5 13.5c-3.2.8-5 4-4.4 7.4.5 2.6 2.7 3.6 2.9 6.2.2 3.4-2.4 5.6-1.5 9 .8 3.1 3.6 5.2 5.8 4.3 2.4-1 2.3-4.4 1.4-7-.9-2.5-2.7-3.6-2.4-6.3.3-2.7 2.9-4 3.4-7 .5-3.3-1.6-6.5-5.2-6.6Z" opacity=".96" />
-          {/* centre (Africa / Eurasia) */}
-          <path d="M35 16.5c5-1.6 11 .2 13.4 4.3 1.6 2.7-.2 5.6-2.6 7.2-2.9 2-6.7 1.6-8.6 4.6-1.8 2.8.2 6.6-2.6 8.6-2.7 1.9-6.4-.1-7.4-3.2-1.2-3.7 1.4-6.8 1.6-10.6.2-4.5 1.6-9.2 6.2-10.9Z" />
-          {/* small south-east */}
-          <path d="M45.5 40c3-.4 6 2 5.6 5-.4 2.8-3.6 4-6 2.6-2.3-1.4-2.6-4.8-1.3-6.6.5-.7 1-1 1.7-1Z" opacity=".92" />
-        </g>
-
-        {/* sphere shading + bottom bounce light */}
+        {/* sphere shading (3D) + subtle blue bounce light — no white overlays */}
         <circle cx="32" cy="32" r="28" fill={`url(#shade${uid})`} />
         <path d="M6 44 A28 28 0 0 0 58 44 A34 22 0 0 1 6 44 Z" fill={`url(#rim${uid})`} />
-
-        {/* glass reflection: upper window with a curved belly */}
-        <path d="M7.5 24 C10 10.5 21 4.5 32 4.5 C43 4.5 54 10.5 56.5 24 C46 30.5 18 30.5 7.5 24 Z"
-          fill={`url(#gloss${uid})`} opacity="0.72" />
-        <ellipse className="mark-glint" cx="22" cy="12.5" rx="7.5" ry="3.6" fill="#ffffff" opacity="0.85" />
       </g>
 
       <circle cx="32" cy="32" r="27.5" stroke="#0a1e42" strokeOpacity="0.85" strokeWidth="1" />

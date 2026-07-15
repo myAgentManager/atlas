@@ -8,6 +8,12 @@
       "port": 8787
     },
     {
+      "name": "abuela-sonya",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["abuela-sonya/server.js"],
+      "port": 5000
+    },
+    {
       "name": "1view",
       "runtimeExecutable": "node",
       "runtimeArgs": ["1View/server.js"],

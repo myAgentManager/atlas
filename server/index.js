@@ -358,6 +358,8 @@ app.get('/api/agent', (req, res) => {
     ...publicPlatform(), // registrationOpen + enabled sign-in providers
   });
 });
+// Public pricing — plan names/prices/caps only (no secrets), for the marketing site.
+app.get('/api/plans', (_req, res) => res.json({ plans: billing.plans(), intro: config.introDiscount }));
 
 // ============================================================================
 // tasks (scoped to the signed-in account)

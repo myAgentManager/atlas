@@ -1744,3 +1744,44 @@ body {
 /* v23 — SIP line paste + test-call row */
 .sip-line-row { display: flex; gap: 8px; }
 .sip-line-row .field { flex: 1; }
+
+/* v25 — real-website chrome: nav links, pricing, footer */
+.home-nav { gap: 20px; }
+.home-nav-links { display: flex; align-items: center; gap: 6px; margin-right: auto; }
+.home-navlink { font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-dim); background: none; border: none;
+  cursor: pointer; padding: 8px 12px; border-radius: 9px; transition: color 0.14s, background 0.14s; }
+.home-navlink:hover { color: var(--ink); background: var(--well); }
+.home-navlink.signin { color: var(--ink); }
+@media (max-width: 860px) { .home-nav-links { display: none; } }
+
+/* pricing */
+.pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 1080px; margin: 0 auto; }
+.price-card { position: relative; display: flex; flex-direction: column; padding: 26px 22px; border-radius: 16px;
+  background: var(--glass-soft); border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow-sm); }
+.price-card.featured { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 10px 30px rgba(23,201,182,0.18); }
+.price-flag { position: absolute; top: -11px; left: 22px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px;
+  text-transform: uppercase; color: #04211d; background: linear-gradient(180deg, #1dd3bf, #0fb5a4); padding: 4px 11px; border-radius: 20px; }
+.price-name { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px; color: var(--cyan-deep); }
+.price-amount { font-size: 38px; font-weight: 800; letter-spacing: -1.5px; margin: 6px 0 2px; }
+.price-amount span { font-size: 15px; font-weight: 600; color: var(--ink-faint); letter-spacing: 0; }
+.price-line { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); margin-bottom: 10px; }
+.price-line .icon { color: var(--cyan-deep); }
+.price-blurb { font-size: 13.5px; line-height: 1.55; color: var(--ink-dim); flex: 1; margin-bottom: 18px; }
+.price-btn { width: 100%; }
+@media (max-width: 900px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .pricing-grid { grid-template-columns: 1fr; } }
+
+/* footer */
+.site-foot { border-top: 1px solid var(--line); margin-top: 40px; padding: 44px 0 28px; }
+.site-foot-top { display: grid; grid-template-columns: 1.4fr 2fr; gap: 32px; max-width: 1180px; margin: 0 auto; padding: 0 clamp(18px,5vw,40px); }
+.site-foot-brand p { color: var(--ink-faint); font-size: 13.5px; line-height: 1.6; margin-top: 12px; max-width: 320px; }
+.site-foot-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.foot-col { display: flex; flex-direction: column; gap: 9px; align-items: flex-start; }
+.foot-col h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--ink-faint); margin-bottom: 3px; }
+.foot-col button, .foot-col a { font: inherit; font-size: 13.5px; color: var(--ink-dim); background: none; border: none; cursor: pointer;
+  padding: 0; text-align: left; text-decoration: none; transition: color 0.14s; }
+.foot-col button:hover, .foot-col a:hover { color: var(--cyan-deep); }
+.foot-col .foot-muted { color: var(--ink-faint); cursor: default; }
+.site-foot-bottom { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; max-width: 1180px; margin: 32px auto 0;
+  padding: 20px clamp(18px,5vw,40px) 0; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-faint); }
+@media (max-width: 760px) { .site-foot-top { grid-template-columns: 1fr; } }

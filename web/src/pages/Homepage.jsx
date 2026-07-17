@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon, Mark } from '../icons.jsx';
 import Globe from '../Globe.jsx';
 import { getTheme, toggleTheme } from '../theme.js';
+import { api } from '../api.js';
 
-export default function Homepage({ agent, connected, tasks, user, onLaunch, onSignIn }) {
+export default function Homepage({ agent, connected, tasks, user, onLaunch, onSignIn, onNav, scrollTo }) {
   const name = agent?.name || 'ATLAS';
   const [theme, setTheme] = useState(getTheme());
+  const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // deep-linked to /pricing → land on the pricing section
+  useEffect(() => { if (scrollTo) setTimeout(() => jump(scrollTo), 60); }, [scrollTo]);
 
   return (
     <div className="home">
@@ -14,10 +19,13 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       {/* nav */}
       <nav className="home-nav">
         <div className="brandline"><Mark size={28} /><span className="wordmark"><span className="wordmark-agent">Atlas</span></span></div>
+        <div className="home-nav-links">
+          <button className="home-navlink" onClick={() => jump('how')}>How it works</button>
+          <button className="home-navlink" onClick={() => jump('features')}>Features</button>
+          <button className="home-navlink" onClick={() => (onNav ? onNav('pricing') : jump('pricing'))}>Pricing</button>
+          <button className="home-navlink" onClick={() => jump('integrations')}>Integrations</button>
+        </div>
         <div className="home-nav-right">
-          <span className={`net-badge ${connected || agent ? 'on' : 'off'}`}>
-            <span className="led" /> {agent ? 'atlas network · online' : 'connecting…'}
-          </span>
           <button className="mini-btn ghost theme-btn" title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             onClick={() => setTheme(toggleTheme())}>
             <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
@@ -25,7 +33,10 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           {user ? (
             <button className="gel-btn gel-primary" onClick={onLaunch}>Open Dashboard <Icon name="arrow" size={16} /></button>
           ) : (
-            <button className="gel-btn gel-primary" onClick={onSignIn}>Sign in <Icon name="arrow" size={16} /></button>
+            <>
+              <button className="home-navlink signin" onClick={onSignIn}>Sign in</button>
+              <button className="gel-btn gel-primary" onClick={onSignIn}>Start free <Icon name="arrow" size={16} /></button>
+            </>
           )}
         </div>
       </nav>
@@ -54,7 +65,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
           <div className="hero-stats">
             <Stat value="24/7" label="On duty" />
             <Stat value={13} label="Integrations" />
-            <Stat value={0} label="External AI calls" />
+            <Stat value="40+" label="Languages" />
           </div>
         </div>
       </header>
@@ -82,7 +93,7 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
       </section>
 
       {/* capabilities */}
-      <section className="band">
+      <section className="band" id="features">
         <div className="band-head"><h2 className="band-title">Built to actually run a front desk</h2></div>
         <div className="cap-grid">
           <Cap icon="brain" title="An AI that's truly yours"
@@ -181,14 +192,76 @@ export default function Homepage({ agent, connected, tasks, user, onLaunch, onSi
         </div>
       </section>
 
-      <section className="cta-band">
-        <h2 className="band-title">Ready when you are.</h2>
-        <button className="gel-btn gel-primary big" onClick={onLaunch}>{user ? 'Open your dashboard' : 'Create your account'}</button>
+      {/* pricing */}
+      <section className="band" id="pricing">
+        <div className="band-head">
+          <h2 className="band-title">Straightforward pricing</h2>
+          <p className="band-sub">Start free. Pay by team size, not per message — the busywork's on us either way.</p>
+        </div>
+        <PricingTable onStart={onSignIn} user={user} onLaunch={onLaunch} />
       </section>
 
-      <footer className="home-foot">
-        Atlas — a product of <b className="foot-brand">Atlas Networks</b> · powered by ATLAS Core · {new Date().getFullYear()}
+      <section className="cta-band">
+        <h2 className="band-title">Ready when you are.</h2>
+        <button className="gel-btn gel-primary big" onClick={user ? onLaunch : onSignIn}>{user ? 'Open your dashboard' : 'Create your account'}</button>
+      </section>
+
+      <footer className="site-foot">
+        <div className="site-foot-top">
+          <div className="site-foot-brand">
+            <div className="brandline"><Mark size={26} /><span className="wordmark"><span className="wordmark-agent">Atlas</span></span></div>
+            <p>An AI agent that runs your front line — email, chat, calls, bookings. Built by Atlas Networks on ATLAS Core.</p>
+          </div>
+          <nav className="site-foot-cols">
+            <div className="foot-col">
+              <h4>Product</h4>
+              <button onClick={() => jump('how')}>How it works</button>
+              <button onClick={() => jump('features')}>Features</button>
+              <button onClick={() => (onNav ? onNav('pricing') : jump('pricing'))}>Pricing</button>
+              <button onClick={() => jump('integrations')}>Integrations</button>
+            </div>
+            <div className="foot-col">
+              <h4>Account</h4>
+              <button onClick={onSignIn}>Sign in</button>
+              <button onClick={onSignIn}>Create account</button>
+            </div>
+            <div className="foot-col">
+              <h4>Company</h4>
+              <a href="mailto:hello@atlasnetworks.com">Contact</a>
+              <span className="foot-muted">Atlas Networks</span>
+            </div>
+          </nav>
+        </div>
+        <div className="site-foot-bottom">
+          <span>© {new Date().getFullYear()} Atlas Networks. All rights reserved.</span>
+          <span className="foot-muted">Powered by ATLAS Core · no third-party AI</span>
+        </div>
       </footer>
+    </div>
+  );
+}
+
+// Public pricing table — reads the real tiers from the platform.
+function PricingTable({ onStart, onLaunch, user }) {
+  const [plans, setPlans] = useState(null);
+  const [intro, setIntro] = useState(null);
+  useEffect(() => { api.publicPlans().then((d) => { setPlans(d.plans); setIntro(d.intro); }).catch(() => {}); }, []);
+  if (!plans) return <div className="empty">Loading plans…</div>;
+  const seats = { free: '2 people', starter: 'Unlimited team', pro: 'Unlimited team', growth: 'Unlimited team' };
+  return (
+    <div className="pricing-grid">
+      {plans.map((p) => (
+        <div key={p.id} className={`price-card ${p.id === 'pro' ? 'featured' : ''}`}>
+          {p.id === 'pro' && <div className="price-flag">Most popular</div>}
+          <div className="price-name">{p.name}</div>
+          <div className="price-amount">{p.price === 0 ? 'Free' : <>${p.price}<span>/mo</span></>}</div>
+          <div className="price-line"><Icon name="user" size={13} /> {p.agents} agent{p.agents !== 1 ? 's' : ''} · {seats[p.id] || 'team'}</div>
+          <p className="price-blurb">{p.blurb}</p>
+          <button className={`gel-btn ${p.id === 'pro' ? 'gel-primary' : ''} price-btn`} onClick={user ? onLaunch : onStart}>
+            {p.price === 0 ? 'Start free' : `Choose ${p.name}`}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

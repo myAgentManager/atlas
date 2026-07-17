@@ -71,6 +71,7 @@ export const api = {
   connectors: () => get('/api/connectors'),
   saveConnector: (id, fields) => send(`/api/connectors/${id}`, 'PUT', fields),
   clearConnector: (id) => send(`/api/connectors/${id}`, 'DELETE'),
+  publicPlans: () => get('/api/plans'),
   archetypes: () => get('/api/archetypes'),
   team: () => get('/api/team'),
   inviteTeam: (email, role) => post('/api/team/invite', { email, role }),
